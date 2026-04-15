@@ -23,11 +23,18 @@ export async function fetchSheetRows() {
 }
 
 // ── Build a client roadmap from sheet rows ────────────────────────────────────
-export function buildClientRoadmapFromRows(rows, clientId) {
-  const clientRows = rows.filter(r => r.clientId === clientId);
+export function buildClientRoadmapFromRows(rows, clientId, projectId = null) {
+  const clientRows = rows.filter(r => {
+    if (r.clientId !== clientId) return false;
+    // If a projectId is given, scope to that project.
+    // If no projectId (legacy single-project clients), return all rows for the client.
+    if (projectId && r.projectId) return r.projectId === projectId;
+    return true;
+  });
   if (!clientRows.length) return null;
 
   const clientName = clientRows[0].clientName;
+  const projectTitle = clientRows[0].projectTitle || null;
 
   // Find timeline bounds from the task data
   const monthYears = clientRows.map(r => ({
@@ -105,6 +112,7 @@ export function buildClientRoadmapFromRows(rows, clientId) {
   return {
     id: clientId,
     name: clientName,
+    projectTitle,
     roadmap: {
       startMonthIndex,
       startYear,
@@ -116,10 +124,33 @@ export function buildClientRoadmapFromRows(rows, clientId) {
   };
 }
 
-// ── Get all unique client IDs from the sheet ──────────────────────────────────
+// ── Get all clients with their projects from the sheet ────────────────────────
+// Returns: [{ id, name, projects: [{ id, title }] }]
 export function getAllClientsFromRows(rows) {
-  const seen = new Set();
-  return rows
-    .filter(r => r.clientId && !seen.has(r.clientId) && seen.add(r.clientId))
-    .map(r => ({ id: r.clientId, name: r.clientName }));
+  const clientMap = new Map();
+
+  for (const r of rows) {
+    if (!r.clientId) continue;
+
+    if (!clientMap.has(r.clientId)) {
+      clientMap.set(r.clientId, { id: r.clientId, name: r.clientName, projects: new Map() });
+    }
+
+    const client = clientMap.get(r.clientId);
+    const pid = r.projectId || '';
+    const ptitle = r.projectTitle || r.clientName;
+
+    if (pid && !client.projects.has(pid)) {
+      client.projects.set(pid, { id: pid, title: ptitle });
+    }
+  }
+
+  return [...clientMap.values()].map(c => ({
+    id: c.id,
+    name: c.name,
+    // Rows without a projectId (legacy) get a fallback project entry using clientId.
+    projects: c.projects.size > 0
+      ? [...c.projects.values()]
+      : [{ id: c.id, title: c.name }],
+  }));
 }

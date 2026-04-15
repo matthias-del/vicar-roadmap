@@ -203,6 +203,8 @@ function rowToTsvCells(row) {
     row.status ?? '',
     row.completionThreshold ?? '',
     row.teamleaderIds ?? '',
+    row.projectId ?? '',       // L — V2 project UUID
+    row.projectTitle ?? '',    // M — human-readable project name
   ].map(v => String(v).replace(/\t/g, ' ').replace(/\r?\n/g, ' '));
 }
 
@@ -420,6 +422,8 @@ export async function GET(request) {
         uuid: t.id,
         kind: t._kind,
         end_date: t.end_date || t.date,
+        projectId: projectIdParam,
+        projectTitle: projectTitle ?? '',
       });
     }
 
