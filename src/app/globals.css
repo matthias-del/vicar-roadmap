@@ -467,3 +467,29 @@ html, body {
   font-weight: 500;
 }
 
+/* ── Overview (zoomed out) mode ──────────────────────────────────────────── */
+/* Hide week-number row, hide task text, keep colored bars visible. */
+.roadmap-overview .weeks-header > * {
+  display: none;
+}
+
+.roadmap-overview .task-bar {
+  padding: 0 2px;
+  height: 24px;
+}
+
+.roadmap-overview .task-bar.meeting-bar {
+  height: 28px;
+}
+
+.roadmap-overview .task-title,
+.roadmap-overview .meeting-label,
+.roadmap-overview .meeting-date {
+  display: none;
+}
+
+/* Collapse the now-empty week header row to zero height. */
+.roadmap-overview .roadmap-grid {
+  grid-template-rows: auto 0 auto;
+}
+

@@ -56,7 +56,10 @@ export default function RoadmapContainer({ clientData }) {
           </div>
         </div>
         <div className="roadmap-wrapper" style={{ overflowX: zoomed ? 'hidden' : 'auto' }}>
-          <div style={overviewCellWidth ? { '--cell-min-width': `${overviewCellWidth}px` } : {}}>
+          <div
+            className={zoomed ? 'roadmap-overview' : ''}
+            style={overviewCellWidth ? { '--cell-min-width': `${overviewCellWidth}px` } : {}}
+          >
             <RoadmapGrid roadmap={clientData.roadmap} />
           </div>
         </div>
