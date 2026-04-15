@@ -40,7 +40,7 @@ function stripPrice(s) { return s ? s.replace(PRICE_SUFFIX, '').trim() : null; }
 function stripLegal(s) { return s ? s.replace(LEGAL_TOKENS, '').replace(/\s{2,}/g, ' ').trim() : null; }
 function slug(s) { return s ? s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : null; }
 
-async function tlPost(endpoint, body, token, { retries = 3 } = {}) {
+async function tlPost(endpoint, body, token, { retries = 6 } = {}) {
   let attempt = 0;
   while (true) {
     const res = await fetch(`${TL}/${endpoint}`, {
@@ -51,16 +51,19 @@ async function tlPost(endpoint, body, token, { retries = 3 } = {}) {
     const text = await res.text();
     let data = null;
     try { data = JSON.parse(text); } catch { data = text; }
-    // Retry on 429 (rate limit) with exponential backoff.
+    // Retry on 429 (rate limit). Teamleader resets per-minute, so on a hit
+    // we back off aggressively: 2s, 4s, 8s, 16s, 30s, 60s.
     if (res.status === 429 && attempt < retries) {
-      const wait = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
-      await new Promise(r => setTimeout(r, wait));
+      const waits = [2000, 4000, 8000, 16000, 30000, 60000];
+      await new Promise(r => setTimeout(r, waits[attempt]));
       attempt += 1;
       continue;
     }
     return { status: res.status, ok: res.ok, data };
   }
 }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // V2 task status mapped to sheet status.
 function mapStatus(s) {
@@ -108,7 +111,21 @@ async function listAllV2(endpoint, token, { stopWhen, maxPages = 200 } = {}) {
 }
 
 const listAllTasks = (token, opts) => listAllV2('projects-v2/tasks.list', token, opts);
-const listAllMeetings = (token, opts) => listAllV2('projects-v2/meetings.list', token, opts);
+
+// projects-v2/meetings.list ignores pagination and returns everything in one
+// call (~600 items for the whole workspace). No need to paginate — doing so
+// just burns rate limit.
+async function listAllMeetings(token) {
+  const res = await tlPost('projects-v2/meetings.list', {
+    page: { size: 1000, number: 1 },
+    sort: [{ field: 'created_at', order: 'desc' }],
+  }, token);
+  if (!res.ok) {
+    const err = new Error('projects-v2/meetings.list failed');
+    err.detail = res.data; err.status = res.status; throw err;
+  }
+  return res.data?.data || [];
+}
 
 async function listAllV2Projects(token) {
   const all = [];
@@ -329,7 +346,7 @@ export async function GET(request) {
 
     // Serialize — parallel scans blew past Teamleader's rate limit.
     const allTasks = await listAllTasks(token, { stopWhen: makeStop() });
-    const allMeetings = await listAllMeetings(token, { stopWhen: makeStop() });
+    const allMeetings = await listAllMeetings(token);
     const tasks = allTasks.filter(t => t.project?.id === projectIdParam);
     const meetings = allMeetings.filter(m => m.project?.id === projectIdParam);
     const items = [
