@@ -125,14 +125,16 @@ export function buildClientRoadmapFromRows(rows, clientId, projectId = null) {
 }
 
 // ── Look up the password for a given client/project ──────────────────────────
+// Passwords live in the CLIENT_PASSWORDS env var as a JSON map:
+//   { "clientId/projectId": "password", ... }
 // Returns the password string (may be empty → public, no login required).
-export function getRoadmapPassword(rows, clientId, projectId = null) {
-  const row = rows.find(r => {
-    if (r.clientId !== clientId) return false;
-    if (projectId && r.projectId) return r.projectId === projectId;
-    return true;
-  });
-  return (row?.password || '').trim();
+export function getRoadmapPassword(_rows, clientId, projectId = null) {
+  const raw = process.env.CLIENT_PASSWORDS;
+  if (!raw) return '';
+  let map;
+  try { map = JSON.parse(raw); } catch { return ''; }
+  const key = projectId ? `${clientId}/${projectId}` : clientId;
+  return (map[key] || '').toString().trim();
 }
 
 // ── Get all clients with their projects from the sheet ────────────────────────
