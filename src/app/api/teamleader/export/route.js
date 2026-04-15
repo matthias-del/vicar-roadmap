@@ -69,22 +69,22 @@ function deriveDateFields(dateStr) {
   };
 }
 
-// Page through projects-v2/tasks.list. The filter is ignored by the API,
+// Page through a V2 list endpoint. The filter is ignored by the API,
 // so we client-side filter; this function supports an early-exit predicate
 // to stop once we've collected enough matches for the target project.
-async function listAllTasks(token, { stopWhen, maxPages = 200 } = {}) {
+async function listAllV2(endpoint, token, { stopWhen, maxPages = 200 } = {}) {
   const all = [];
   let page = 1;
   const size = 100;
   // Sort newest-first so recent projects appear in the first pages.
   // If the API doesn't honor sort, this just gets ignored — no harm.
   while (true) {
-    const res = await tlPost('projects-v2/tasks.list', {
+    const res = await tlPost(endpoint, {
       page: { size, number: page },
       sort: [{ field: 'created_at', order: 'desc' }],
     }, token);
     if (!res.ok) {
-      const err = new Error(`projects-v2/tasks.list failed (page ${page})`);
+      const err = new Error(`${endpoint} failed (page ${page})`);
       err.detail = res.data; err.status = res.status; throw err;
     }
     const items = res.data?.data || [];
@@ -96,6 +96,9 @@ async function listAllTasks(token, { stopWhen, maxPages = 200 } = {}) {
   }
   return all;
 }
+
+const listAllTasks = (token, opts) => listAllV2('projects-v2/tasks.list', token, opts);
+const listAllMeetings = (token, opts) => listAllV2('projects-v2/meetings.list', token, opts);
 
 async function listAllV2Projects(token) {
   const all = [];
@@ -295,35 +298,43 @@ export async function GET(request) {
       });
     }
 
-    // Normal export: fetch tasks (client-side filter; the API ignores the
-    // project filter). Stop scanning early once we've gathered matches and
-    // then seen ~10 consecutive pages with no new ones.
-    let lastMatchPage = 0;
-    const allTasks = await listAllTasks(token, {
-      stopWhen: (collected, currentPage) => {
+    // Normal export: fetch tasks AND meetings (both are separate V2 entities
+    // but share the same shape: {id, title, status, start_date, end_date,
+    // project:{id}, group:{id}}). The API ignores the project filter on both,
+    // so client-side filter. Stop scanning early once we've gathered matches
+    // and then seen ~10 consecutive pages with no new ones.
+    const makeStop = () => {
+      let lastMatchPage = 0;
+      let prevMatches = 0;
+      return (collected, currentPage) => {
         const matches = collected.filter(t => t.project?.id === projectIdParam).length;
-        if (matches > 0 && lastMatchPage === 0) lastMatchPage = currentPage;
-        if (matches > 0) {
-          // If this page contributed no new matches AND it's been 10 pages
-          // since the last new match, assume we have everything.
-          const matchesAtPageStart = collected.length - 100; // approx
-          const matchesBefore = collected
-            .slice(0, Math.max(0, matchesAtPageStart))
-            .filter(t => t.project?.id === projectIdParam).length;
-          if (matches > matchesBefore) lastMatchPage = currentPage;
-          if (currentPage - lastMatchPage >= 10) return true;
+        if (matches > prevMatches) {
+          lastMatchPage = currentPage;
+          prevMatches = matches;
         }
+        if (matches > 0 && currentPage - lastMatchPage >= 10) return true;
         return false;
-      },
-    });
-    const tasks = allTasks.filter(t => t.project?.id === projectIdParam);
+      };
+    };
 
-    if (!tasks.length) {
+    const [allTasks, allMeetings] = await Promise.all([
+      listAllTasks(token, { stopWhen: makeStop() }),
+      listAllMeetings(token, { stopWhen: makeStop() }),
+    ]);
+    const tasks = allTasks.filter(t => t.project?.id === projectIdParam);
+    const meetings = allMeetings.filter(m => m.project?.id === projectIdParam);
+    const items = [
+      ...tasks.map(t => ({ ...t, _kind: 'task' })),
+      ...meetings.map(m => ({ ...m, _kind: 'meeting' })),
+    ];
+
+    if (!items.length) {
       return NextResponse.json(
         {
-          error: `No V2 tasks found for projectId=${projectIdParam}`,
+          error: `No V2 tasks or meetings found for projectId=${projectIdParam}`,
           hint: 'The URL ID may differ from the V2 API ID. Try ?listProjects=1 to find the right one.',
           totalTasksScanned: allTasks.length,
+          totalMeetingsScanned: allMeetings.length,
         },
         { status: 404 },
       );
@@ -352,10 +363,10 @@ export async function GET(request) {
     const clientId = slug(clientName);
 
     const rows = [];
-    for (const t of tasks) {
+    for (const t of items) {
       const taskTitle = stripPrice(t.title || null);
       const groupLabel = await resolveGroupName(t.group?.id, token, groupCache);
-      const dateStr = t.end_date || t.start_date || null;
+      const dateStr = t.end_date || t.start_date || t.date || null;
       const { startMonth, startYear, weekInMonth } = deriveDateFields(dateStr);
 
       rows.push({
@@ -371,7 +382,8 @@ export async function GET(request) {
         completionThreshold: '',
         teamleaderIds: '', // V2 doesn't expose legacy int id; backfilled rows can't auto-delete via webhook
         uuid: t.id,
-        end_date: t.end_date,
+        kind: t._kind,
+        end_date: t.end_date || t.date,
       });
     }
 
