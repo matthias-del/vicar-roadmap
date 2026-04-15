@@ -40,16 +40,26 @@ function stripPrice(s) { return s ? s.replace(PRICE_SUFFIX, '').trim() : null; }
 function stripLegal(s) { return s ? s.replace(LEGAL_TOKENS, '').replace(/\s{2,}/g, ' ').trim() : null; }
 function slug(s) { return s ? s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : null; }
 
-async function tlPost(endpoint, body, token) {
-  const res = await fetch(`${TL}/${endpoint}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  let data = null;
-  try { data = JSON.parse(text); } catch { data = text; }
-  return { status: res.status, ok: res.ok, data };
+async function tlPost(endpoint, body, token, { retries = 3 } = {}) {
+  let attempt = 0;
+  while (true) {
+    const res = await fetch(`${TL}/${endpoint}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = text; }
+    // Retry on 429 (rate limit) with exponential backoff.
+    if (res.status === 429 && attempt < retries) {
+      const wait = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
+      await new Promise(r => setTimeout(r, wait));
+      attempt += 1;
+      continue;
+    }
+    return { status: res.status, ok: res.ok, data };
+  }
 }
 
 // V2 task status mapped to sheet status.
@@ -317,10 +327,9 @@ export async function GET(request) {
       };
     };
 
-    const [allTasks, allMeetings] = await Promise.all([
-      listAllTasks(token, { stopWhen: makeStop() }),
-      listAllMeetings(token, { stopWhen: makeStop() }),
-    ]);
+    // Serialize — parallel scans blew past Teamleader's rate limit.
+    const allTasks = await listAllTasks(token, { stopWhen: makeStop() });
+    const allMeetings = await listAllMeetings(token, { stopWhen: makeStop() });
     const tasks = allTasks.filter(t => t.project?.id === projectIdParam);
     const meetings = allMeetings.filter(m => m.project?.id === projectIdParam);
     const items = [
