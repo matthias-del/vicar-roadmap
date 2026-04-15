@@ -153,7 +153,7 @@ async function resolveCustomerName(customer, token, cache) {
 async function resolveGroupName(groupId, token, cache) {
   if (!groupId) return '';
   if (cache.has(groupId)) return cache.get(groupId);
-  const res = await tlPost('projects-v2/groups.info', { id: groupId }, token);
+  const res = await tlPost('projects-v2/projectGroups.info', { id: groupId }, token);
   let name = '';
   if (res.ok) name = res.data?.data?.title || res.data?.data?.name || '';
   cache.set(groupId, name);
