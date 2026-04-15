@@ -66,9 +66,37 @@ export async function GET(request) {
     }
 
     const t = info.data?.data;
+    const rawTitle = t?.title || t?.description || null;
+    // Strip trailing price suffix like " €1050" or " €1.050,00" so titles match
+    // what's stored in the Google Sheet (which omits pricing).
+    const title = rawTitle
+      ? rawTitle.replace(/\s+€[\d.,\s]+$/u, '').trim()
+      : null;
+
+    // Enrich with customer name (for disambiguating duplicate task titles
+    // across clients when looking up rows in the sheet).
+    let clientName = null;
+    const customer = t?.customer;
+    if (customer?.id && customer?.type) {
+      const endpoint = customer.type === 'contact' ? 'contacts.info' : 'companies.info';
+      const custRes = await tlPost(endpoint, { id: customer.id }, token);
+      if (custRes.ok) {
+        const c = custRes.data?.data;
+        if (customer.type === 'contact') {
+          const first = c?.first_name || '';
+          const last = c?.last_name || '';
+          clientName = `${first} ${last}`.trim() || null;
+        } else {
+          clientName = c?.name || null;
+        }
+      }
+    }
+
     return NextResponse.json({
       uuid,
-      title: t?.title || t?.description || null,
+      title,
+      rawTitle,
+      clientName,
       description: t?.description || null,
       completed: !!t?.completed,
       due_on: t?.due_on || null,
