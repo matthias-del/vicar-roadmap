@@ -11,6 +11,7 @@ export default function RoadmapContainer({ clientData }) {
   const wrapperRef = useRef(null);
   const gridRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const [scaledHeight, setScaledHeight] = useState('auto');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -20,14 +21,20 @@ export default function RoadmapContainer({ clientData }) {
   }, [router]);
 
   useEffect(() => {
-    if (!zoomed) { setScale(1); return; }
+    if (!zoomed) {
+      setScale(1);
+      setScaledHeight('auto');
+      return;
+    }
     const wrapper = wrapperRef.current;
     const grid = gridRef.current;
     if (!wrapper || !grid) return;
     const availableWidth = wrapper.clientWidth;
     const naturalWidth = grid.scrollWidth;
+    const naturalHeight = grid.scrollHeight;
     const s = Math.min(1, availableWidth / naturalWidth);
     setScale(s);
+    setScaledHeight(`${Math.ceil(naturalHeight * s)}px`);
   }, [zoomed]);
 
   return (
@@ -54,13 +61,17 @@ export default function RoadmapContainer({ clientData }) {
             </div>
           </div>
         </div>
-        <div className="roadmap-wrapper" ref={wrapperRef}>
+        <div
+          className="roadmap-wrapper"
+          ref={wrapperRef}
+          style={{ height: scaledHeight, overflow: zoomed ? 'hidden' : 'auto' }}
+        >
           <div
             ref={gridRef}
             style={{
               transform: `scale(${scale})`,
               transformOrigin: 'top left',
-              width: zoomed ? `${100 / scale}%` : '100%',
+              width: scale < 1 ? `${100 / scale}%` : '100%',
               transition: 'transform 0.3s ease',
             }}
           >
