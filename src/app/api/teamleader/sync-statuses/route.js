@@ -1,17 +1,20 @@
 // GET /api/teamleader/sync-statuses
 //   [?dryRun=1]  → diff only, no Zap calls
-//   default      → reconcile status changes + create missing rows
+//   default      → reconcile status + date changes + create missing rows
 //
-// Two Zap URLs needed:
-//   ZAPIER_WEBHOOK_URL        → existing update-row Zap
-//   ZAPIER_CREATE_WEBHOOK_URL → new create-row Zap
+// Three Zap URLs needed:
+//   ZAPIER_WEBHOOK_URL          → existing update-row Zap (status changes)
+//   ZAPIER_CREATE_WEBHOOK_URL   → create-row Zap (new tasks)
+//   ZAPIER_RESCHEDULE_WEBHOOK_URL → reschedule Zap (date changes, cols E/F/G)
 //
 // What this does each run:
 //   1. Read sheet (CSV) — collect UUIDs in col K + project IDs in col L
 //   2. Fetch all V2 tasks + meetings from Teamleader
-//   3. STATUS SYNC: for existing rows whose status drifted, POST synthetic
+//   3. STATUS SYNC: for rows whose status drifted, POST synthetic
 //      task.completed / task.reopened events to ZAPIER_WEBHOOK_URL
-//   4. NEW ROWS: for tasks/meetings in a tracked project but missing from the
+//   4. DATE SYNC: for rows whose startMonth/startYear/weekInMonth drifted,
+//      POST task.rescheduled events to ZAPIER_RESCHEDULE_WEBHOOK_URL
+//   5. NEW ROWS: for tasks/meetings in a tracked project but missing from the
 //      sheet, POST the full row payload to ZAPIER_CREATE_WEBHOOK_URL
 
 import { NextResponse } from 'next/server';
@@ -120,6 +123,7 @@ export async function GET(request) {
   const dryRun = searchParams.get('dryRun') === '1';
   const zapUrl = searchParams.get('zapUrl') || process.env.ZAPIER_WEBHOOK_URL;
   const createZapUrl = searchParams.get('createZapUrl') || process.env.ZAPIER_CREATE_WEBHOOK_URL;
+  const rescheduleZapUrl = searchParams.get('rescheduleZapUrl') || process.env.ZAPIER_RESCHEDULE_WEBHOOK_URL;
 
   if (!dryRun && !zapUrl) {
     return NextResponse.json(
@@ -153,12 +157,15 @@ export async function GET(request) {
       }
     }
 
-    // For status sync: rows that have a UUID in col K.
+    // For status/date sync: rows that have a UUID in col K.
     const sheetRowsWithUuid = rows
       .map(r => ({
         clientId: r.clientId,
         taskTitle: r.taskTitle,
         sheetStatus: r.status,
+        sheetStartMonth: r.startMonth,
+        sheetStartYear: String(r.startYear || '').trim(),
+        sheetWeekInMonth: String(r.weekInMonth || '').trim(),
         teamleaderId: (r.teamleaderIds || '').trim(),
       }))
       .filter(r => UUID_RE.test(r.teamleaderId));
@@ -205,6 +212,50 @@ export async function GET(request) {
           subject: { type: 'task', id: c.teamleaderId },
         });
         fired.push({ teamleaderId: c.teamleaderId, eventType, ok: res.ok, status: res.status });
+        await new Promise(r => setTimeout(r, 250));
+      }
+    }
+
+    // ── DATE SYNC ────────────────────────────────────────────────────────────
+    const dateChanges = [];
+    for (const row of sheetRowsWithUuid) {
+      const tl = tlById.get(row.teamleaderId);
+      if (!tl) continue;
+      const dateStr = tl.item.end_date || tl.item.start_date || tl.item.date || null;
+      if (!dateStr) continue;
+      const expected = deriveDateFields(dateStr);
+      const same =
+        row.sheetStartMonth === expected.startMonth &&
+        row.sheetStartYear === String(expected.startYear) &&
+        row.sheetWeekInMonth === String(expected.weekInMonth);
+      if (!same) {
+        dateChanges.push({
+          teamleaderId: row.teamleaderId,
+          taskTitle: row.taskTitle,
+          clientId: row.clientId,
+          sheet: {
+            startMonth: row.sheetStartMonth,
+            startYear: row.sheetStartYear,
+            weekInMonth: row.sheetWeekInMonth,
+          },
+          expected,
+          tlDate: dateStr,
+          kind: tl.kind,
+        });
+      }
+    }
+
+    const firedReschedule = [];
+    if (!dryRun && rescheduleZapUrl) {
+      for (const c of dateChanges) {
+        const res = await fireZap(rescheduleZapUrl, {
+          type: 'task.rescheduled',
+          subject: { type: 'task', id: c.teamleaderId },
+          startMonth: c.expected.startMonth,
+          startYear: c.expected.startYear,
+          weekInMonth: c.expected.weekInMonth,
+        });
+        firedReschedule.push({ teamleaderId: c.teamleaderId, ok: res.ok, status: res.status });
         await new Promise(r => setTimeout(r, 250));
       }
     }
@@ -270,6 +321,10 @@ export async function GET(request) {
       missingCount: missing.length,
       changes,
       fired: dryRun ? null : fired,
+      // Date sync
+      dateChangeCount: dateChanges.length,
+      dateChanges,
+      firedReschedule: dryRun ? null : firedReschedule,
       // New rows
       newRowCount: newRows.length,
       newRows: dryRun ? newRows : newRows.map(r => r.taskTitle),
