@@ -69,14 +69,19 @@ function deriveDateFields(dateStr) {
   };
 }
 
-// Page through projects-v2/tasks.list (returns ALL tasks, filter is ignored).
-async function listAllTasks(token) {
+// Page through projects-v2/tasks.list. The filter is ignored by the API,
+// so we client-side filter; this function supports an early-exit predicate
+// to stop once we've collected enough matches for the target project.
+async function listAllTasks(token, { stopWhen, maxPages = 200 } = {}) {
   const all = [];
   let page = 1;
   const size = 100;
+  // Sort newest-first so recent projects appear in the first pages.
+  // If the API doesn't honor sort, this just gets ignored — no harm.
   while (true) {
     const res = await tlPost('projects-v2/tasks.list', {
       page: { size, number: page },
+      sort: [{ field: 'created_at', order: 'desc' }],
     }, token);
     if (!res.ok) {
       const err = new Error(`projects-v2/tasks.list failed (page ${page})`);
@@ -85,8 +90,9 @@ async function listAllTasks(token) {
     const items = res.data?.data || [];
     all.push(...items);
     if (items.length < size) break;
+    if (stopWhen && stopWhen(all, page)) break;
     page += 1;
-    if (page > 50) break;
+    if (page > maxPages) break;
   }
   return all;
 }
@@ -233,14 +239,60 @@ export async function GET(request) {
         });
       }
 
+      // Probe group endpoint variants — pick a real group ID from a task.
+      const sampleTaskRes = await tlPost('projects-v2/tasks.list', {
+        page: { size: 5, number: 1 },
+      }, token);
+      const sampleGroupId = sampleTaskRes.data?.data?.find(t => t.group?.id)?.group?.id;
+
+      const groupEndpoints = [
+        'projects-v2/groups.info',
+        'projects-v2/projectGroups.info',
+        'projects-v2/project-groups.info',
+        'projects-v2/sections.info',
+        'projects-v2/groups.list',
+      ];
+      const groupTests = [];
+      for (const ep of groupEndpoints) {
+        const r = await tlPost(ep, sampleGroupId ? { id: sampleGroupId } : { page: { size: 1, number: 1 } }, token);
+        groupTests.push({
+          endpoint: ep,
+          status: r.status,
+          ok: r.ok,
+          sampleData: r.ok ? (r.data?.data || null) : null,
+          error: r.ok ? null : r.data,
+        });
+      }
+
       return NextResponse.json({
         projects_v2_info: { status: projInfo.status, ok: projInfo.ok, data: projInfo.data },
         filterTests,
+        sampleGroupId,
+        groupTests,
       });
     }
 
-    // Normal export: fetch all tasks, client-side filter by project.id.
-    const allTasks = await listAllTasks(token);
+    // Normal export: fetch tasks (client-side filter; the API ignores the
+    // project filter). Stop scanning early once we've gathered matches and
+    // then seen ~10 consecutive pages with no new ones.
+    let lastMatchPage = 0;
+    const allTasks = await listAllTasks(token, {
+      stopWhen: (collected, currentPage) => {
+        const matches = collected.filter(t => t.project?.id === projectIdParam).length;
+        if (matches > 0 && lastMatchPage === 0) lastMatchPage = currentPage;
+        if (matches > 0) {
+          // If this page contributed no new matches AND it's been 10 pages
+          // since the last new match, assume we have everything.
+          const matchesAtPageStart = collected.length - 100; // approx
+          const matchesBefore = collected
+            .slice(0, Math.max(0, matchesAtPageStart))
+            .filter(t => t.project?.id === projectIdParam).length;
+          if (matches > matchesBefore) lastMatchPage = currentPage;
+          if (currentPage - lastMatchPage >= 10) return true;
+        }
+        return false;
+      },
+    });
     const tasks = allTasks.filter(t => t.project?.id === projectIdParam);
 
     if (!tasks.length) {
