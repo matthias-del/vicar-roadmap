@@ -204,7 +204,7 @@ export async function GET(request) {
 
     // Mode 2: debug raw responses.
     if (debug) {
-      const projInfo = await tlPost('projects-v2.info', { id: projectIdParam }, token);
+      const projInfo = await tlPost('projects-v2/projects.info', { id: projectIdParam }, token);
       const tasksRes = await tlPost('projects-v2/tasks.list', {
         page: { size: 2, number: 1 },
       }, token);
@@ -232,7 +232,7 @@ export async function GET(request) {
     // Project info for customer.
     let projectCustomer = null;
     let projectTitle = null;
-    const projInfo = await tlPost('projects-v2.info', { id: projectIdParam }, token);
+    const projInfo = await tlPost('projects-v2/projects.info', { id: projectIdParam }, token);
     if (projInfo.ok) {
       const p = projInfo.data?.data;
       projectTitle = p?.title || p?.name || null;
@@ -241,7 +241,13 @@ export async function GET(request) {
 
     const customerCache = new Map();
     const groupCache = new Map();
-    const rawClientName = await resolveCustomerName(projectCustomer, token, customerCache);
+    // Prefer ?clientName= override (for V2 projects that aren't linked to
+    // a customer in TL), then resolved customer name, then project title
+    // as last resort so rows aren't blank.
+    const overrideClient = searchParams.get('clientName');
+    const rawClientName = overrideClient
+      || await resolveCustomerName(projectCustomer, token, customerCache)
+      || projectTitle;
     const clientName = stripLegal(rawClientName);
     const clientId = slug(clientName);
 
