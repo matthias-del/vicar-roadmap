@@ -1,0 +1,197 @@
+{
+  "clients": [
+    {
+      "id": "vicar-demo",
+      "name": "VICAR Roadmap",
+      "roadmap": {
+        "startMonthIndex": 10,
+        "durationMonths": 3,
+        "totalWeeks": 13,
+        "phases": [
+          {
+            "title": "November",
+            "monthIndex": 10,
+            "year": 2025,
+            "start": 1,
+            "span": 4
+          },
+          {
+            "title": "December",
+            "monthIndex": 11,
+            "year": 2025,
+            "start": 5,
+            "span": 4
+          },
+          {
+            "title": "January",
+            "monthIndex": 0,
+            "year": 2026,
+            "start": 9,
+            "span": 5
+          }
+        ],
+        "groups": [
+          {
+            "id": "group-website",
+            "label": "WEBSITE",
+            "rows": [
+              {
+                "id": "row-w1",
+                "tasks": [
+                  {
+                    "id": "tw1",
+                    "title": "Low Fidelity",
+                    "startWeek": 1,
+                    "duration": 2,
+                    "status": "completed",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  },
+                  {
+                    "id": "tw2",
+                    "title": "High Fidelity",
+                    "startWeek": 3,
+                    "duration": 4,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  }
+                ]
+              },
+              {
+                "id": "row-1775912532953-ug67",
+                "tasks": [
+                  {
+                    "id": "task-1775912532953-bxvm",
+                    "title": "Development",
+                    "startWeek": 1,
+                    "duration": 2,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "group-socials",
+            "label": "SOCIALS",
+            "rows": [
+              {
+                "id": "row-s1",
+                "tasks": [
+                  {
+                    "id": "ts1",
+                    "title": "Content Strategy",
+                    "startWeek": 2,
+                    "duration": 3,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  },
+                  {
+                    "id": "ts2",
+                    "title": "Grid Planning",
+                    "startWeek": 5,
+                    "duration": 2,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  }
+                ]
+              },
+              {
+                "id": "row-s2",
+                "tasks": [
+                  {
+                    "id": "ts3",
+                    "title": "Asset Sourcing",
+                    "startWeek": 5,
+                    "duration": 4,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  },
+                  {
+                    "id": "ts4",
+                    "title": "Campaign Launch",
+                    "startWeek": 9,
+                    "duration": 4,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "group-visuals",
+            "label": "VISUALS",
+            "rows": [
+              {
+                "id": "row-v1",
+                "tasks": [
+                  {
+                    "id": "tv1",
+                    "title": "Moodboards",
+                    "startWeek": 1,
+                    "duration": 2,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  },
+                  {
+                    "id": "tv2",
+                    "title": "Video Production",
+                    "startWeek": 4,
+                    "duration": 4,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  }
+                ]
+              },
+              {
+                "id": "row-v2",
+                "tasks": [
+                  {
+                    "id": "tv3",
+                    "title": "Photo Editing",
+                    "startWeek": 8,
+                    "duration": 2,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  },
+                  {
+                    "id": "tv4",
+                    "title": "Final Delivery",
+                    "startWeek": 11,
+                    "duration": 2,
+                    "status": "planned",
+                    "teamleaderIds": [],
+                    "completionThreshold": 100,
+                    "teamleaderTaskStatuses": {}
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "startYear": 2025
+      }
+    }
+  ]
+}

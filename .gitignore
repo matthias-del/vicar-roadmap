@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Teamleader OAuth tokens (local dev only — never commit)
+src/data/tl-tokens.json

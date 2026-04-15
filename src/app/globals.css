@@ -1,26 +1,467 @@
-@import "tailwindcss";
+/* src/app/globals.css */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-color: #ededed;
+  --text-primary: #121212;
+  --text-secondary: #5f5f5f;
+  
+  /* Timeline Grid Colors */
+  --header-dark: #727272;
+  --header-light: #727272;
+  --lane-bg: #d9d9d9;
+  --grid-line: #ffffff;
+
+  /* Task specific colors */
+  --task-bg-completed: #4a7c59;
+  --task-bg-progress: #c08c2a;
+  --task-bg-planned: #727272;
+
+  /* Sizes */
+  --sidebar-width: 160px;
+  --header-row-height: 30px;
+  --cell-min-width: 48px;
+  --row-height: 48px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+*, *:before, *:after {
+  box-sizing: inherit;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Page layout: sidebar + roadmap side by side */
+.roadmap-page {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 40px 20px;
+  max-width: 1600px;
+  margin: 0 auto;
 }
+
+/* ── Admin / Builder Sidebar ─────────────────────────────────────────────── */
+.admin-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  background: #1a1a1a;
+  border-radius: 10px;
+  padding: 16px 14px;
+  position: sticky;
+  top: 40px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+.admin-sidebar-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 18px;
+}
+
+.builder-section {
+  margin-bottom: 24px;
+}
+
+.builder-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #272727;
+}
+
+/* Timeline fields */
+.builder-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.builder-label {
+  font-size: 11px;
+  color: #666;
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.builder-unit {
+  font-size: 11px;
+  color: #444;
+}
+
+.builder-select,
+.builder-input-sm {
+  flex: 1;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 5px;
+  color: #ccc;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 8px;
+}
+
+.builder-select:focus,
+.builder-input-sm:focus {
+  outline: none;
+  border-color: #444;
+  color: white;
+}
+
+.builder-input-sm { width: 52px; flex: none; text-align: center; }
+.builder-select-sm { font-size: 11px; padding: 4px 6px; }
+.builder-input-sm::-webkit-inner-spin-button,
+.builder-input-sm::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; }
+.builder-input-sm { -moz-appearance: textfield; appearance: textfield; }
+
+/* Groups */
+.builder-group {
+  background: #111;
+  border-radius: 7px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.builder-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.builder-group-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #aaa;
+}
+
+/* Tasks */
+.builder-task-row {
+  background: #1a1a1a;
+  border-radius: 5px;
+  padding: 7px 8px;
+  margin-bottom: 5px;
+}
+
+.builder-task-title {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #2a2a2a;
+  color: #ddd;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 0 0 5px;
+  margin-bottom: 6px;
+}
+
+.builder-task-title:focus {
+  outline: none;
+  border-bottom-color: #555;
+  color: white;
+}
+
+.builder-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.builder-meta-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.builder-meta-input {
+  width: 36px;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 11px;
+  font-family: inherit;
+  text-align: center;
+  padding: 3px 4px;
+}
+
+.builder-meta-input:focus { outline: none; border-color: #444; color: white; }
+.builder-meta-input::-webkit-inner-spin-button,
+.builder-meta-input::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; }
+.builder-meta-input { -moz-appearance: textfield; appearance: textfield; }
+
+.builder-task-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.builder-tl-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #2a2a2a;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.builder-status-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.builder-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s, border-color 0.12s;
+}
+
+.builder-dot:hover { transform: scale(1.2); }
+.builder-dot[data-status="completed"] { background: var(--task-bg-completed); }
+.builder-dot[data-status="progress"]  { background: var(--task-bg-progress); }
+.builder-dot[data-status="planned"]   { background: var(--task-bg-planned); }
+.builder-dot[data-active="true"]      { border-color: white; }
+
+/* Buttons */
+.builder-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.builder-icon-btn.danger { color: #555; }
+.builder-icon-btn.danger:hover { color: #e05252; background: rgba(224,82,82,0.1); }
+
+.builder-add-btn {
+  width: 100%;
+  background: none;
+  border: 1px dashed #2a2a2a;
+  border-radius: 5px;
+  color: #444;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 5px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.builder-add-btn:hover { color: #888; border-color: #444; }
+
+.builder-add-service-btn {
+  width: 100%;
+  background: none;
+  border: 1px dashed #2a2a2a;
+  border-radius: 7px;
+  color: #444;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.builder-add-service-btn:hover { color: #888; border-color: #444; }
+
+/* Container */
+.roadmap-container {
+  flex: 1;
+  min-width: 0;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+}
+
+.roadmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.roadmap-header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.roadmap-header .logo {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.roadmap-wrapper {
+  overflow-x: auto;
+  padding-bottom: 20px;
+  background: white;
+}
+
+/* Grid System */
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) repeat(var(--total-weeks), minmax(var(--cell-min-width), 1fr));
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--grid-line);
+  gap: 1px; /* The gap creates the white grid lines */
+  border: 1px solid var(--grid-line);
+}
+
+/* Headers */
+.phases-header, .weeks-header {
+  display: contents; /* align to columns perfectly */
+}
+
+.timeline-header-cell.empty-corner {
+  background: white;
+}
+
+.timeline-phase-cell {
+  background: var(--header-dark);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 3px solid var(--grid-line); /* Spacing between months and weeks */
+}
+
+.timeline-week-cell {
+  background: #727272;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sidebars (horizontal text with grey right stub) */
+.vertical-group-label {
+  background: white; /* Removed #f4f4f4 box to hover next to grid */
+  color: #000000;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: normal;
+  position: relative;
+  padding-right: 34px; /* clear the ::after stub */
+  overflow: hidden;
+}
+
+.vertical-group-label::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  width: 16px; /* Increased width to be chunkier */
+  top: 12px;
+  bottom: 12px;
+  background-color: #727272;
+  border-radius: 4px;
+}
+
+/* Background Lanes */
+.grid-lane-cell {
+  background: #ebebeb;
+  height: var(--row-height);
+}
+
+/* Task Bars */
+.task-bar {
+  /* Using self-align center so it doesn't touch the top/bottom edges perfectly */
+  align-self: center;
+  height: 32px;
+  border-radius: 4px;
+  margin-left: 2px;
+  margin-right: 2px;
+  padding: 0 10px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  z-index: 5;
+  color: white;
+  transition: opacity 0.2s;
+}
+
+/* Meeting point bars — taller, two-line centered layout */
+.task-bar.meeting-bar {
+  height: 42px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  gap: 1px;
+}
+
+.meeting-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.meeting-date {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.task-bar:hover {
+  opacity: 0.9;
+}
+
+.task-bar[data-status="completed"] {
+  background: var(--task-bg-completed);
+}
+
+.task-bar[data-status="progress"] {
+  background: var(--task-bg-progress);
+}
+
+.task-bar[data-status="planned"] {
+  background: var(--task-bg-planned);
+}
+
+.task-title {
+  font-weight: 500;
+}
+
