@@ -1,8 +1,10 @@
 import { fetchSheetRows, buildClientRoadmapFromRows } from "@/lib/googleSheets";
 import RoadmapContainer from "@/components/roadmap/RoadmapContainer";
 
-export default async function ProjectRoadmapPage({ params }) {
+export default async function ProjectRoadmapPage({ params, searchParams }) {
   const { clientId, projectId } = await params;
+  const sp = (await searchParams) || {};
+  const showBuilder = sp.edit === "1";
 
   let clientData = null;
 
@@ -17,5 +19,5 @@ export default async function ProjectRoadmapPage({ params }) {
     return <div style={{ padding: 40 }}>Roadmap not found for: {clientId} / {projectId}</div>;
   }
 
-  return <RoadmapContainer clientData={clientData} />;
+  return <RoadmapContainer clientData={clientData} showBuilder={showBuilder} />;
 }

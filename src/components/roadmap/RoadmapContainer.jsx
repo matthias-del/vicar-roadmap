@@ -7,7 +7,7 @@ import StatusSidebar from "./StatusSidebar";
 
 const SIDEBAR_WIDTH = 160; // must match --sidebar-width in CSS
 
-export default function RoadmapContainer({ clientData }) {
+export default function RoadmapContainer({ clientData, showBuilder = false }) {
   const router = useRouter();
   const [zoomed, setZoomed] = useState(false);
   const containerRef = useRef(null);
@@ -33,7 +33,7 @@ export default function RoadmapContainer({ clientData }) {
 
   return (
     <div className="roadmap-page">
-      <StatusSidebar roadmap={clientData.roadmap} />
+      {showBuilder && <StatusSidebar roadmap={clientData.roadmap} />}
 
       <div className="roadmap-container" ref={containerRef}>
         <div className="roadmap-header">
