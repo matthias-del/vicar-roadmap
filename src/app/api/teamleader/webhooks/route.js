@@ -65,6 +65,38 @@ export async function GET(request) {
       return NextResponse.json({ url, results });
     }
 
+    // Probe: try many candidate event names, report which Teamleader accepts.
+    // We register+unregister each one against a dummy URL to probe validity
+    // without polluting real subscriptions.
+    if (searchParams.get('probe') === '1') {
+      const probeUrl = 'https://example.invalid/probe';
+      const candidates = [
+        'task.completed', 'task.reopened', 'task.updated', 'task.added', 'task.deleted',
+        'nextgenProjectsTask.completed', 'nextgenProjectsTask.reopened',
+        'nextgenProjectTask.completed', 'nextgenProjectTask.reopened', 'nextgenProjectTask.added', 'nextgenProjectTask.updated', 'nextgenProjectTask.deleted',
+        'nextgenProjectsTaskCompleted', 'nextgenProjectTaskCompleted',
+        'nextgenProject.task.completed', 'nextgenProject.task.reopened',
+        'nextgenProjectMeeting.completed', 'nextgenProjectMeeting.reopened', 'nextgenProjectMeeting.added', 'nextgenProjectMeeting.updated', 'nextgenProjectMeeting.deleted',
+        'nextgenProjectsMeeting.completed', 'nextgenProjectsMeeting.reopened',
+        'nextgenProject.added', 'nextgenProject.updated', 'nextgenProject.deleted',
+        'project.added', 'project.updated', 'project.deleted',
+        'projectTask.completed', 'projectTask.reopened',
+        'meeting.completed', 'meeting.added', 'meeting.updated', 'meeting.deleted',
+        'calendarEvent.created', 'calendarEvent.updated',
+      ];
+      const results = [];
+      for (const type of candidates) {
+        const reg = await tlPost('webhooks.register', { url: probeUrl, types: [type] }, token);
+        results.push({ type, accepted: reg.ok, status: reg.status, error: reg.ok ? null : reg.data });
+        if (reg.ok) {
+          // Clean up so we don't leave a subscription behind.
+          await tlPost('webhooks.unregister', { url: probeUrl, types: [type] }, token);
+        }
+      }
+      const accepted = results.filter(r => r.accepted).map(r => r.type);
+      return NextResponse.json({ accepted, results });
+    }
+
     if (unregister) {
       if (!url || !typesParam) {
         return NextResponse.json(
