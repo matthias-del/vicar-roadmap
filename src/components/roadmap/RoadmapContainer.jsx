@@ -32,7 +32,7 @@ export default function RoadmapContainer({ clientData, showBuilder = false }) {
   }, [zoomed, clientData.roadmap.totalWeeks]);
 
   return (
-    <div className="roadmap-page">
+    <div className={`roadmap-page${showBuilder ? '' : ' client-view'}`}>
       {showBuilder && <StatusSidebar roadmap={clientData.roadmap} />}
 
       <div className="roadmap-container" ref={containerRef}>

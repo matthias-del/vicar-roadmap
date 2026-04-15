@@ -46,6 +46,17 @@ html, body {
   margin: 0 auto;
 }
 
+/* Client view: no builder sidebar — center the roadmap on screen. */
+.roadmap-page.client-view {
+  justify-content: center;
+  max-width: 1400px;
+}
+
+.roadmap-page.client-view .roadmap-container {
+  flex: 0 1 100%;
+  max-width: 1400px;
+}
+
 /* ── Admin / Builder Sidebar ─────────────────────────────────────────────── */
 .admin-sidebar {
   flex-shrink: 0;
