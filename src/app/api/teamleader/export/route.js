@@ -31,7 +31,8 @@ import { getValidToken } from '@/lib/teamleaderAuth';
 
 const TL = 'https://api.focus.teamleader.eu';
 
-const PRICE_SUFFIX = /\s+€[\d.,\s]+$/u;
+// Matches price fragments anywhere: " €1234,56" or " (€1234,56)" etc.
+const PRICE_SUFFIX = /\s*\(?€[\d.,\s]+\)?/gu;
 const LEGAL_TOKENS = /\b(?:BV|BVBA|NV|SA|SRL|SAS|SARL|SPRL|S\.?A\.?|S\.?R\.?L\.?|Ltd\.?|LLC|Inc\.?|GmbH|AG|Plc)\b/giu;
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];

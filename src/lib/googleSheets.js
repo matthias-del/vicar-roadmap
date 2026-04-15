@@ -4,14 +4,55 @@ const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLX1S4Qq
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// ── CSV parser (handles quoted fields) ────────────────────────────────────────
+// ── CSV parser (properly handles quoted fields with commas and newlines) ─────
+function parseCSVRow(text, start) {
+  // Parse a single CSV row starting at index `start`. Returns { values, next }.
+  const values = [];
+  let i = start;
+  let cur = '';
+  let inQuotes = false;
+
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i += 2; continue; } // escaped ""
+        inQuotes = false; i += 1; continue;
+      }
+      cur += ch; i += 1; continue;
+    }
+    if (ch === '"') { inQuotes = true; i += 1; continue; }
+    if (ch === ',') { values.push(cur); cur = ''; i += 1; continue; }
+    if (ch === '\n' || ch === '\r') {
+      // End of row. Skip past a CRLF sequence.
+      if (ch === '\r' && text[i + 1] === '\n') i += 1;
+      i += 1;
+      values.push(cur);
+      return { values, next: i };
+    }
+    cur += ch; i += 1;
+  }
+  // End of text
+  values.push(cur);
+  return { values, next: i };
+}
+
 function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? '']));
-  });
+  const { values: headers, next: afterHeader } = parseCSVRow(text, 0);
+  const trimmedHeaders = headers.map(h => h.trim());
+
+  const rows = [];
+  let i = afterHeader;
+  while (i < text.length) {
+    const { values, next } = parseCSVRow(text, i);
+    i = next;
+    // Skip blank trailing lines.
+    if (values.length === 1 && values[0].trim() === '') continue;
+    const obj = {};
+    trimmedHeaders.forEach((h, idx) => { obj[h] = (values[idx] ?? '').trim(); });
+    rows.push(obj);
+  }
+  return rows;
 }
 
 // ── Fetch and parse the sheet ─────────────────────────────────────────────────
