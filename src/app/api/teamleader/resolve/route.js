@@ -75,7 +75,7 @@ export async function GET(request) {
 
     // Enrich with customer name (for disambiguating duplicate task titles
     // across clients when looking up rows in the sheet).
-    let clientName = null;
+    let rawClientName = null;
     const customer = t?.customer;
     if (customer?.id && customer?.type) {
       const endpoint = customer.type === 'contact' ? 'contacts.info' : 'companies.info';
@@ -85,18 +85,26 @@ export async function GET(request) {
         if (customer.type === 'contact') {
           const first = c?.first_name || '';
           const last = c?.last_name || '';
-          clientName = `${first} ${last}`.trim() || null;
+          rawClientName = `${first} ${last}`.trim() || null;
         } else {
-          clientName = c?.name || null;
+          rawClientName = c?.name || null;
         }
       }
     }
+
+    // Strip common legal-entity tokens (BV, BVBA, NV, SA, SRL, Ltd, GmbH, ...)
+    // whether they appear as a leading or trailing word. Sheet uses bare names.
+    const LEGAL_TOKENS = /\b(?:BV|BVBA|NV|SA|SRL|SAS|SARL|SPRL|S\.?A\.?|S\.?R\.?L\.?|Ltd\.?|LLC|Inc\.?|GmbH|AG|Plc)\b/giu;
+    const clientName = rawClientName
+      ? rawClientName.replace(LEGAL_TOKENS, '').replace(/\s{2,}/g, ' ').trim()
+      : null;
 
     return NextResponse.json({
       uuid,
       title,
       rawTitle,
       clientName,
+      rawClientName,
       description: t?.description || null,
       completed: !!t?.completed,
       due_on: t?.due_on || null,
