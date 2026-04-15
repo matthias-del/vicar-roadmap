@@ -15,10 +15,7 @@ export default function TaskBar({ task, gridRow, startColumn, endColumn }) {
       title={task.title}
     >
       {isMeeting ? (
-        <>
-          <span className="task-title meeting-label">Meeting</span>
-          <span className="task-title meeting-date">{meetingDate}</span>
-        </>
+        <span className="task-title">Meeting ({meetingDate})</span>
       ) : (
         <span className="task-title">{task.title}</span>
       )}

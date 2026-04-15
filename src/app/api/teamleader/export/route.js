@@ -390,10 +390,17 @@ export async function GET(request) {
 
     const rows = [];
     for (const t of items) {
-      const taskTitle = stripPrice(t.title || null);
       const groupLabel = await resolveGroupName(t.group?.id, token, groupCache);
       const dateStr = t.end_date || t.start_date || t.date || null;
       const { startMonth, startYear, weekInMonth } = deriveDateFields(dateStr);
+
+      // Meetings are rendered in the roadmap as "Meeting (<date>)" — the
+      // TaskBar component detects a "Meeting " prefix. Give meeting rows a
+      // title in that shape so they render consistently.
+      const rawTitle = stripPrice(t.title || null);
+      const taskTitle = t._kind === 'meeting'
+        ? `Meeting ${dateStr || ''}`.trim()
+        : rawTitle;
 
       rows.push({
         clientId,
