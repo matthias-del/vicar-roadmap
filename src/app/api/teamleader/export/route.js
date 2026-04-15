@@ -396,13 +396,14 @@ export async function GET(request) {
       const dateStr = t.end_date || t.start_date || t.date || null;
       const { startMonth, startYear, weekInMonth } = deriveDateFields(dateStr);
 
-      // Meetings are rendered in the roadmap as "Meeting (<date>)" — the
-      // TaskBar component detects a "Meeting " prefix. Strip the year since
-      // the roadmap header already shows it; "MM-DD" is enough.
+      // Meetings are rendered in the roadmap as "Meeting (<date>)" or
+      // "Shoot (<date>)" for Visuals groups. Strip the year since the roadmap
+      // header already shows it; "MM-DD" is enough.
       const rawTitle = stripPrice(t.title || null);
       const shortDate = dateStr ? dateStr.slice(5) : ''; // YYYY-MM-DD → MM-DD
+      const isVisuals = /visual/i.test(groupLabel);
       const taskTitle = t._kind === 'meeting'
-        ? `Meeting ${shortDate}`.trim()
+        ? `${isVisuals ? 'Shoot' : 'Meeting'} ${shortDate}`.trim()
         : rawTitle;
 
       rows.push({
