@@ -1,48 +1,44 @@
-// GET /api/teamleader/export?projectId=<uuid>[&format=tsv|json]
+// GET /api/teamleader/export?projectId=<uuid>[&format=tsv|json][&debug=1]
+//                            [&listProjects=1]
 //
-// Backfill helper: lists every task on a Teamleader project and returns the
-// rows in the same column order as the roadmap Google Sheet, ready to paste
-// into the next empty row.
+// Backfill helper for V2 (nextgen) Teamleader projects. Returns the rows in
+// the same column order as the roadmap Google Sheet, ready to paste into
+// the next empty row.
 //
-// Default response is TSV (Excel/Sheets pastes it across the right columns).
-// Pass ?format=json to inspect the structured payload instead.
+// Caveats discovered while building this:
+//   - The UUID in a Teamleader project URL (/projects/<uuid>/work-breakdown)
+//     is NOT the same as the V2 API project ID. We list V2 projects and
+//     match against task.project.id to find the right one.
+//   - V2 task fields: { id, title, status (open|done|...), start_date,
+//     end_date, project: { id }, group: { id } }. There is no `customer`
+//     on a V2 task — it lives on the project.
+//   - V2 task list does NOT enforce its filter — it silently returns
+//     everything. We always client-side filter by task.project.id.
 //
-// Column order matches the sheet:
+// Modes:
+//   ?listProjects=1     → returns V2 projects with id + title for picking
+//   ?debug=1            → raw API responses (project info + first 2 tasks)
+//   ?format=json[&full=1] → structured rows (preview-only by default)
+//   default             → TSV for paste-into-sheet
+//
+// Sheet column order:
 //   A clientId   B clientName   C groupLabel   D taskTitle
 //   E startMonth F startYear    G weekInMonth  H duration
 //   I status     J completionThreshold         K teamleaderIds
-//
-// Notes:
-//   - groupLabel is left blank — Teamleader's tasks API does not expose
-//     which group/section a task belongs to. Fill it in manually after paste.
-//   - completionThreshold is left blank (defaults to 100 in the UI).
-//   - teamleaderIds is left blank for backfilled rows. Teamleader does not
-//     expose a UUID→legacy-int reverse lookup, so the task_deleted webhook
-//     Zap will not be able to auto-remove these rows. Paste the int IDs by
-//     hand if you need that, or just rely on the future flow for new tasks.
 
 import { NextResponse } from 'next/server';
 import { getValidToken } from '@/lib/teamleaderAuth';
 
 const TL = 'https://api.focus.teamleader.eu';
 
-// ── Same normalization the resolve endpoint uses ─────────────────────────────
 const PRICE_SUFFIX = /\s+€[\d.,\s]+$/u;
 const LEGAL_TOKENS = /\b(?:BV|BVBA|NV|SA|SRL|SAS|SARL|SPRL|S\.?A\.?|S\.?R\.?L\.?|Ltd\.?|LLC|Inc\.?|GmbH|AG|Plc)\b/giu;
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 
-function stripPrice(title) {
-  return title ? title.replace(PRICE_SUFFIX, '').trim() : null;
-}
-
-function stripLegal(name) {
-  return name ? name.replace(LEGAL_TOKENS, '').replace(/\s{2,}/g, ' ').trim() : null;
-}
-
-function slug(s) {
-  return s ? s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : null;
-}
+function stripPrice(s) { return s ? s.replace(PRICE_SUFFIX, '').trim() : null; }
+function stripLegal(s) { return s ? s.replace(LEGAL_TOKENS, '').replace(/\s{2,}/g, ' ').trim() : null; }
+function slug(s) { return s ? s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : null; }
 
 async function tlPost(endpoint, body, token) {
   const res = await fetch(`${TL}/${endpoint}`, {
@@ -56,70 +52,16 @@ async function tlPost(endpoint, body, token) {
   return { status: res.status, ok: res.ok, data };
 }
 
-// Page through tasks for a project. Tries the new Projects V2 endpoint first
-// (the project URLs in the TL UI under /projects/<uuid>/work-breakdown are V2)
-// and falls back to legacy tasks.list if that 4xx's.
-async function listAllTasks(projectId, token) {
-  const endpoints = ['projects-v2/tasks.list', 'tasks.list'];
-  let lastErr = null;
-
-  for (const endpoint of endpoints) {
-    const all = [];
-    let page = 1;
-    const size = 100;
-    let endpointFailed = false;
-
-    while (true) {
-      const res = await tlPost(endpoint, {
-        filter: { project_id: projectId },
-        page: { size, number: page },
-      }, token);
-
-      if (!res.ok) {
-        lastErr = { endpoint, page, status: res.status, detail: res.data };
-        endpointFailed = true;
-        break;
-      }
-
-      const items = res.data?.data || [];
-      all.push(...items);
-      if (items.length < size) break;
-      page += 1;
-      if (page > 50) break; // safety
-    }
-
-    if (!endpointFailed) return { tasks: all, endpoint };
-  }
-
-  const err = new Error(`tasks.list failed on all endpoints (last: ${lastErr.endpoint} page ${lastErr.page})`);
-  err.detail = lastErr.detail;
-  err.status = lastErr.status;
-  throw err;
+// V2 task status mapped to sheet status.
+function mapStatus(s) {
+  if (!s) return 'planned';
+  if (s === 'done' || s === 'completed') return 'completed';
+  if (s === 'in_progress' || s === 'started') return 'progress';
+  return 'planned'; // open, planned, etc.
 }
 
-// Resolve a customer (company or contact) to a display name. Cached per call.
-async function resolveCustomerName(customer, token, cache) {
-  if (!customer?.id || !customer?.type) return null;
-  const key = `${customer.type}:${customer.id}`;
-  if (cache.has(key)) return cache.get(key);
-
-  const endpoint = customer.type === 'contact' ? 'contacts.info' : 'companies.info';
-  const res = await tlPost(endpoint, { id: customer.id }, token);
-  let name = null;
-  if (res.ok) {
-    const c = res.data?.data;
-    if (customer.type === 'contact') {
-      name = `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || null;
-    } else {
-      name = c?.name || null;
-    }
-  }
-  cache.set(key, name);
-  return name;
-}
-
-function deriveDateFields(due_on) {
-  const d = due_on ? new Date(due_on) : new Date();
+function deriveDateFields(dateStr) {
+  const d = dateStr ? new Date(dateStr) : new Date();
   return {
     startMonth: MONTHS[d.getUTCMonth()],
     startYear: d.getUTCFullYear(),
@@ -127,9 +69,75 @@ function deriveDateFields(due_on) {
   };
 }
 
+// Page through projects-v2/tasks.list (returns ALL tasks, filter is ignored).
+async function listAllTasks(token) {
+  const all = [];
+  let page = 1;
+  const size = 100;
+  while (true) {
+    const res = await tlPost('projects-v2/tasks.list', {
+      page: { size, number: page },
+    }, token);
+    if (!res.ok) {
+      const err = new Error(`projects-v2/tasks.list failed (page ${page})`);
+      err.detail = res.data; err.status = res.status; throw err;
+    }
+    const items = res.data?.data || [];
+    all.push(...items);
+    if (items.length < size) break;
+    page += 1;
+    if (page > 50) break;
+  }
+  return all;
+}
+
+async function listAllV2Projects(token) {
+  const all = [];
+  let page = 1;
+  const size = 100;
+  while (true) {
+    const res = await tlPost('projects-v2.list', {
+      page: { size, number: page },
+    }, token);
+    if (!res.ok) return all; // best effort
+    const items = res.data?.data || [];
+    all.push(...items);
+    if (items.length < size) break;
+    page += 1;
+    if (page > 20) break;
+  }
+  return all;
+}
+
+async function resolveCustomerName(customer, token, cache) {
+  if (!customer?.id || !customer?.type) return null;
+  const key = `${customer.type}:${customer.id}`;
+  if (cache.has(key)) return cache.get(key);
+  const endpoint = customer.type === 'contact' ? 'contacts.info' : 'companies.info';
+  const res = await tlPost(endpoint, { id: customer.id }, token);
+  let name = null;
+  if (res.ok) {
+    const c = res.data?.data;
+    name = customer.type === 'contact'
+      ? `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || null
+      : c?.name || null;
+  }
+  cache.set(key, name);
+  return name;
+}
+
+// Resolve a V2 group id to its name (for groupLabel). Cached per call.
+async function resolveGroupName(groupId, token, cache) {
+  if (!groupId) return '';
+  if (cache.has(groupId)) return cache.get(groupId);
+  const res = await tlPost('projects-v2/groups.info', { id: groupId }, token);
+  let name = '';
+  if (res.ok) name = res.data?.data?.title || res.data?.data?.name || '';
+  cache.set(groupId, name);
+  return name;
+}
+
 function rowToTsvCells(row) {
-  // Column order A..K. Empty cells are kept as empty strings so paste lands
-  // in the right column.
   return [
     row.clientId ?? '',
     row.clientName ?? '',
@@ -147,101 +155,119 @@ function rowToTsvCells(row) {
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get('projectId');
+  const projectIdParam = searchParams.get('projectId');
   const format = (searchParams.get('format') || 'tsv').toLowerCase();
-
-  if (!projectId) {
-    return NextResponse.json(
-      { error: 'Provide ?projectId=<uuid>' },
-      { status: 400 },
-    );
-  }
+  const wantList = searchParams.get('listProjects') === '1';
+  const debug = searchParams.get('debug') === '1';
 
   try {
     const token = await getValidToken();
 
-    // Debug mode: dump raw API responses so we can see actual field shapes.
-    if (searchParams.get('debug') === '1') {
-      const projInfo = await tlPost('projects-v2.info', { id: projectId }, token);
+    // Mode 1: list V2 projects so the user can find the right API ID.
+    if (wantList) {
+      const projects = await listAllV2Projects(token);
+      return NextResponse.json({
+        count: projects.length,
+        projects: projects.map(p => ({
+          id: p.id,
+          title: p.title || p.name,
+          status: p.status,
+          customer: p.customer || p.customers?.[0]?.customer || null,
+        })),
+      });
+    }
+
+    if (!projectIdParam) {
+      return NextResponse.json(
+        { error: 'Provide ?projectId=<v2-uuid>, or ?listProjects=1 to find it.' },
+        { status: 400 },
+      );
+    }
+
+    // Mode 2: debug raw responses.
+    if (debug) {
+      const projInfo = await tlPost('projects-v2.info', { id: projectIdParam }, token);
       const tasksRes = await tlPost('projects-v2/tasks.list', {
-        filter: { project_id: projectId },
         page: { size: 2, number: 1 },
       }, token);
       return NextResponse.json({
         projects_v2_info: { status: projInfo.status, ok: projInfo.ok, data: projInfo.data },
-        projects_v2_tasks_list_first2: {
-          status: tasksRes.status,
-          ok: tasksRes.ok,
-          data: tasksRes.data,
-        },
+        projects_v2_tasks_list_first2: { status: tasksRes.status, ok: tasksRes.ok, data: tasksRes.data },
       });
     }
 
-    const { tasks, endpoint: usedEndpoint } = await listAllTasks(projectId, token);
+    // Normal export: fetch all tasks, client-side filter by project.id.
+    const allTasks = await listAllTasks(token);
+    const tasks = allTasks.filter(t => t.project?.id === projectIdParam);
 
-    // V2 project tasks don't carry a customer field — the customer lives on
-    // the project itself. Try projects-v2.info once; whatever we get becomes
-    // the default customer for every task that doesn't have its own.
+    if (!tasks.length) {
+      return NextResponse.json(
+        {
+          error: `No V2 tasks found for projectId=${projectIdParam}`,
+          hint: 'The URL ID may differ from the V2 API ID. Try ?listProjects=1 to find the right one.',
+          totalTasksScanned: allTasks.length,
+        },
+        { status: 404 },
+      );
+    }
+
+    // Project info for customer.
     let projectCustomer = null;
-    if (usedEndpoint === 'projects-v2/tasks.list') {
-      const projInfo = await tlPost('projects-v2.info', { id: projectId }, token);
-      if (projInfo.ok) {
-        const p = projInfo.data?.data;
-        // V2 project may expose customer either as `customer` (single) or
-        // `customers[0]` (array). Cover both.
-        projectCustomer = p?.customer || p?.customers?.[0]?.customer || p?.customers?.[0] || null;
-      }
+    let projectTitle = null;
+    const projInfo = await tlPost('projects-v2.info', { id: projectIdParam }, token);
+    if (projInfo.ok) {
+      const p = projInfo.data?.data;
+      projectTitle = p?.title || p?.name || null;
+      projectCustomer = p?.customer || p?.customers?.[0]?.customer || p?.customers?.[0] || null;
     }
 
     const customerCache = new Map();
-    const rows = [];
+    const groupCache = new Map();
+    const rawClientName = await resolveCustomerName(projectCustomer, token, customerCache);
+    const clientName = stripLegal(rawClientName);
+    const clientId = slug(clientName);
 
+    const rows = [];
     for (const t of tasks) {
-      const taskTitle = stripPrice(t.title || t.description || null);
-      const customer = t.customer || projectCustomer;
-      const rawClientName = await resolveCustomerName(customer, token, customerCache);
-      const clientName = stripLegal(rawClientName);
-      const clientId = slug(clientName);
-      const { startMonth, startYear, weekInMonth } = deriveDateFields(t.due_on);
+      const taskTitle = stripPrice(t.title || null);
+      const groupLabel = await resolveGroupName(t.group?.id, token, groupCache);
+      const dateStr = t.end_date || t.start_date || null;
+      const { startMonth, startYear, weekInMonth } = deriveDateFields(dateStr);
 
       rows.push({
         clientId,
         clientName,
-        groupLabel: '',
+        groupLabel,
         taskTitle,
         startMonth,
         startYear,
         weekInMonth,
         duration: 1,
-        status: t.completed ? 'completed' : 'planned',
+        status: mapStatus(t.status),
         completionThreshold: '',
-        teamleaderIds: '', // see header comment — int ID unavailable from list
-        // For debugging / json mode
+        teamleaderIds: '', // V2 doesn't expose legacy int id; backfilled rows can't auto-delete via webhook
         uuid: t.id,
-        due_on: t.due_on || null,
+        end_date: t.end_date,
       });
     }
 
     if (format === 'json') {
-      // Default to a small preview to keep responses scannable. Pass
-      // ?full=1 to return every row.
       const full = searchParams.get('full') === '1';
       return NextResponse.json({
         count: rows.length,
-        endpoint: usedEndpoint,
+        projectTitle,
+        clientName,
         preview: rows.slice(0, 3),
-        ...(full ? { rows } : { hint: 'Add &full=1 to include every row, or drop format=json to download as TSV.' }),
+        ...(full ? { rows } : { hint: 'Add &full=1 for every row, or drop format=json for TSV download.' }),
       });
     }
 
-    // TSV: tab-separated, newline between rows, no header (so it pastes
-    // cleanly under the existing header row in the sheet).
     const tsv = rows.map(r => rowToTsvCells(r).join('\t')).join('\n');
     return new Response(tsv, {
       status: 200,
       headers: {
         'Content-Type': 'text/tab-separated-values; charset=utf-8',
-        'Content-Disposition': `inline; filename="teamleader-export-${projectId}.tsv"`,
+        'Content-Disposition': `inline; filename="teamleader-export-${projectIdParam}.tsv"`,
       },
     });
   } catch (err) {
