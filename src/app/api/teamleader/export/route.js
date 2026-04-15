@@ -264,11 +264,34 @@ export async function GET(request) {
         });
       }
 
+      // Probe meeting/event endpoint variants.
+      const meetingEndpoints = [
+        'projects-v2/meetings.list',
+        'projects-v2/events.list',
+        'projects-v2/projectMeetings.list',
+        'meetings.list',
+        'events.list',
+        'calendarEvents.list',
+      ];
+      const meetingTests = [];
+      for (const ep of meetingEndpoints) {
+        const r = await tlPost(ep, { page: { size: 2, number: 1 } }, token);
+        meetingTests.push({
+          endpoint: ep,
+          status: r.status,
+          ok: r.ok,
+          returnedCount: r.ok ? (r.data?.data?.length || 0) : 0,
+          firstItem: r.ok ? (r.data?.data?.[0] || null) : null,
+          error: r.ok ? null : r.data,
+        });
+      }
+
       return NextResponse.json({
         projects_v2_info: { status: projInfo.status, ok: projInfo.ok, data: projInfo.data },
         filterTests,
         sampleGroupId,
         groupTests,
+        meetingTests,
       });
     }
 
