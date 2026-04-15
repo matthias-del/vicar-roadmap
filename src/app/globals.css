@@ -404,17 +404,20 @@ html, body {
 .task-bar {
   /* Using self-align center so it doesn't touch the top/bottom edges perfectly */
   align-self: center;
-  height: 32px;
+  min-height: 32px;
+  height: auto;
   border-radius: 4px;
   margin-left: 2px;
   margin-right: 2px;
-  padding: 0 10px;
+  padding: 6px 10px;
   font-size: 11px;
+  line-height: 1.3;
   display: flex;
   align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Let text wrap to however many lines are needed so it's never clipped. */
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
   cursor: pointer;
   z-index: 5;
   color: white;
@@ -423,12 +426,14 @@ html, body {
 
 /* Meeting point bars — taller, two-line centered layout */
 .task-bar.meeting-bar {
-  height: 42px;
+  min-height: 42px;
+  height: auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
+  padding: 6px 8px;
   gap: 1px;
+  text-align: center;
 }
 
 .meeting-label {
