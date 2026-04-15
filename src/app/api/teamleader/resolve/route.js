@@ -99,6 +99,22 @@ export async function GET(request) {
       ? rawClientName.replace(LEGAL_TOKENS, '').replace(/\s{2,}/g, ' ').trim()
       : null;
 
+    // ── Sheet-row helpers (used by the task.added Zap) ──────────────────────
+    // Slug a client name into a stable id: lowercase, dashes, alnum-only.
+    const clientId = clientName
+      ? clientName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      : null;
+
+    // Derive scheduling fields from due_on (ISO yyyy-mm-dd). When due_on is
+    // missing we fall back to today so the row still lands somewhere sensible.
+    const MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const dueDate = t?.due_on ? new Date(t.due_on) : new Date();
+    const startMonth = MONTHS[dueDate.getUTCMonth()];
+    const startYear = dueDate.getUTCFullYear();
+    // weekInMonth = 1-indexed week number using simple ceil(day/7).
+    const weekInMonth = Math.min(5, Math.ceil(dueDate.getUTCDate() / 7));
+
     return NextResponse.json({
       uuid,
       title,
@@ -108,6 +124,17 @@ export async function GET(request) {
       description: t?.description || null,
       completed: !!t?.completed,
       due_on: t?.due_on || null,
+
+      // ── Convenience fields for "Create Spreadsheet Row" in Zapier ────────
+      clientId,
+      taskTitle: title,
+      groupLabel: '',
+      startMonth,
+      startYear,
+      weekInMonth,
+      duration: 1,
+      status: t?.completed ? 'completed' : 'planned',
+      teamleaderIds: intIdRaw || null,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
