@@ -406,7 +406,9 @@ export async function GET(request) {
         duration: 1,
         status: mapStatus(t.status),
         completionThreshold: '',
-        teamleaderIds: '', // V2 doesn't expose legacy int id; backfilled rows can't auto-delete via webhook
+        // Write the V2 UUID into column K so /api/teamleader/sync-statuses
+        // can reconcile task/meeting status back to the sheet.
+        teamleaderIds: t.id,
         uuid: t.id,
         kind: t._kind,
         end_date: t.end_date || t.date,
