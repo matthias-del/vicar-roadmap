@@ -95,18 +95,35 @@ async function listAllV2Projects(token) {
   const all = [];
   let page = 1;
   const size = 100;
-  while (true) {
-    const res = await tlPost('projects-v2.list', {
-      page: { size, number: page },
-    }, token);
-    if (!res.ok) return all; // best effort
-    const items = res.data?.data || [];
-    all.push(...items);
-    if (items.length < size) break;
-    page += 1;
-    if (page > 20) break;
+  let lastErr = null;
+  // Try both endpoint name conventions; some docs write projects-v2/projects.list,
+  // others projects-v2.list. We use the first one that works.
+  const endpoints = ['projects-v2/projects.list', 'projects-v2.list'];
+
+  for (const endpoint of endpoints) {
+    page = 1;
+    all.length = 0;
+    let endpointFailed = false;
+    while (true) {
+      const res = await tlPost(endpoint, {
+        page: { size, number: page },
+      }, token);
+      if (!res.ok) {
+        lastErr = { endpoint, page, status: res.status, detail: res.data };
+        endpointFailed = true;
+        break;
+      }
+      const items = res.data?.data || [];
+      all.push(...items);
+      if (items.length < size) break;
+      page += 1;
+      if (page > 20) break;
+    }
+    if (!endpointFailed) return { projects: all, endpoint };
   }
-  return all;
+  const err = new Error(`Could not list V2 projects (last endpoint ${lastErr?.endpoint})`);
+  err.detail = lastErr?.detail; err.status = lastErr?.status;
+  throw err;
 }
 
 async function resolveCustomerName(customer, token, cache) {
@@ -165,9 +182,10 @@ export async function GET(request) {
 
     // Mode 1: list V2 projects so the user can find the right API ID.
     if (wantList) {
-      const projects = await listAllV2Projects(token);
+      const { projects, endpoint } = await listAllV2Projects(token);
       return NextResponse.json({
         count: projects.length,
+        endpoint,
         projects: projects.map(p => ({
           id: p.id,
           title: p.title || p.name,
