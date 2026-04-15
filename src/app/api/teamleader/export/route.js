@@ -159,6 +159,24 @@ export async function GET(request) {
 
   try {
     const token = await getValidToken();
+
+    // Debug mode: dump raw API responses so we can see actual field shapes.
+    if (searchParams.get('debug') === '1') {
+      const projInfo = await tlPost('projects-v2.info', { id: projectId }, token);
+      const tasksRes = await tlPost('projects-v2/tasks.list', {
+        filter: { project_id: projectId },
+        page: { size: 2, number: 1 },
+      }, token);
+      return NextResponse.json({
+        projects_v2_info: { status: projInfo.status, ok: projInfo.ok, data: projInfo.data },
+        projects_v2_tasks_list_first2: {
+          status: tasksRes.status,
+          ok: tasksRes.ok,
+          data: tasksRes.data,
+        },
+      });
+    }
+
     const { tasks, endpoint: usedEndpoint } = await listAllTasks(projectId, token);
 
     // V2 project tasks don't carry a customer field — the customer lives on
