@@ -218,11 +218,14 @@ export async function GET(request) {
       if (sheetUuids.has(uuid)) continue; // already in sheet
       const projectId = item.project?.id;
       if (!projectId || !sheetProjectMap.has(projectId)) continue; // untracked project
+      // Only sync tasks/meetings that are assigned to a project group.
+      if (!item.group?.id) continue;
 
       const { clientId, clientName, projectTitle } = sheetProjectMap.get(projectId);
       const dateStr = item.end_date || item.start_date || item.date || null;
       const { startMonth, startYear, weekInMonth } = deriveDateFields(dateStr);
       const groupLabel = await resolveGroupName(item.group?.id, token, groupCache);
+      if (!groupLabel) continue;
       const shortDate = dateStr ? dateStr.slice(5) : '';
       const isVisuals = /visual/i.test(groupLabel);
       const rawTitle = stripPrice(item.title || null);

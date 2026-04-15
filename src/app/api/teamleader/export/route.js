@@ -393,7 +393,11 @@ export async function GET(request) {
 
     const rows = [];
     for (const t of items) {
+      // Skip tasks/meetings that aren't inside a project group — we only
+      // want grouped items in the roadmap.
+      if (!t.group?.id) continue;
       const groupLabel = await resolveGroupName(t.group?.id, token, groupCache);
+      if (!groupLabel) continue;
       const dateStr = t.end_date || t.start_date || t.date || null;
       const { startMonth, startYear, weekInMonth } = deriveDateFields(dateStr);
 
