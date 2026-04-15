@@ -40,8 +40,8 @@ export async function GET(request) {
 
   const tokens = await tokenRes.json();
 
-  // ✅ Save tokens to file — auto-refresh will handle expiry from now on
-  saveTokens(tokens);
+  // ✅ Persist tokens (KV in prod, file in dev) — auto-refresh handles expiry from here
+  await saveTokens(tokens);
 
   const html = `<!DOCTYPE html>
 <html>
