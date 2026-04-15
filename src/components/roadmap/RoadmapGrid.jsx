@@ -1,6 +1,37 @@
 import React from "react";
 import TaskBar from "./TaskBar";
 
+// Groups that should render as one continuous bar spanning their task range,
+// instead of as individual task bars. Compared case-insensitively.
+const MERGED_GROUPS = new Set(['SOCIALS', 'ADS']);
+
+// Roll up a list of tasks into a single "merged" task: earliest start to
+// latest end, with a sensible status (completed if all done, progress if any
+// in progress, else planned).
+function rollupTasks(label, tasks) {
+  if (!tasks.length) return null;
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+  let anyProgress = false;
+  let allCompleted = true;
+  for (const t of tasks) {
+    const start = t.startWeek;
+    const end = t.startWeek + t.duration;
+    if (start < minStart) minStart = start;
+    if (end > maxEnd) maxEnd = end;
+    if (t.status === 'progress') anyProgress = true;
+    if (t.status !== 'completed') allCompleted = false;
+  }
+  const status = allCompleted ? 'completed' : anyProgress ? 'progress' : 'planned';
+  return {
+    id: `merged-${label}`,
+    title: label.charAt(0) + label.slice(1).toLowerCase(), // "Socials", "Ads"
+    startWeek: minStart,
+    duration: maxEnd - minStart,
+    status,
+  };
+}
+
 export default function RoadmapGrid({ roadmap }) {
   const { totalWeeks, phases, groups } = roadmap;
 
@@ -91,8 +122,22 @@ export default function RoadmapGrid({ roadmap }) {
                     />
                   ))}
 
-                  {/* Tasks */}
-                  {row.tasks.map((task) => {
+                  {/* Tasks — merged into one bar for SOCIALS / ADS, individual otherwise */}
+                  {MERGED_GROUPS.has(group.label?.toUpperCase()) ? (() => {
+                    const merged = rollupTasks(group.label, row.tasks);
+                    if (!merged) return null;
+                    const startColumn = merged.startWeek + 1;
+                    const endColumn = startColumn + merged.duration;
+                    return (
+                      <TaskBar
+                        key={merged.id}
+                        task={merged}
+                        gridRow={actualGridRow}
+                        startColumn={startColumn}
+                        endColumn={endColumn}
+                      />
+                    );
+                  })() : row.tasks.map((task) => {
                     const startColumn = task.startWeek + 1;
                     const endColumn = startColumn + task.duration;
 
