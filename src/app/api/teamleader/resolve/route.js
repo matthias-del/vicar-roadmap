@@ -1,0 +1,79 @@
+// GET /api/teamleader/resolve?intId=<legacy integer id>
+//
+// Resolves a Teamleader legacy integer task id (what webhooks send) into
+// { uuid, title, completed }. This is the lookup key Zapier uses to find
+// the matching row in the roadmap sheet.
+
+import { NextResponse } from 'next/server';
+import { getValidToken } from '@/lib/teamleaderAuth';
+
+const TL = 'https://api.focus.teamleader.eu';
+
+async function tlPost(endpoint, body, token) {
+  const res = await fetch(`${TL}/${endpoint}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch { data = text; }
+  return { status: res.status, ok: res.ok, data };
+}
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const intIdRaw = searchParams.get('intId');
+  const uuidParam = searchParams.get('uuid');
+
+  if (!intIdRaw && !uuidParam) {
+    return NextResponse.json(
+      { error: 'Provide ?intId=<legacyInt> or ?uuid=<uuid>' },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const token = await getValidToken();
+
+    // Resolve to UUID
+    let uuid = uuidParam;
+    if (!uuid) {
+      const intId = Number(intIdRaw);
+      if (!Number.isFinite(intId)) {
+        return NextResponse.json({ error: 'intId must be an integer' }, { status: 400 });
+      }
+      const mig = await tlPost('migrate.id', { id: intId, type: 'task' }, token);
+      if (!mig.ok) {
+        return NextResponse.json(
+          { error: 'migrate.id failed', detail: mig.data, status: mig.status },
+          { status: 502 },
+        );
+      }
+      uuid = mig.data?.data?.id;
+      if (!uuid) {
+        return NextResponse.json({ error: 'No UUID returned by migrate.id' }, { status: 404 });
+      }
+    }
+
+    // Fetch task details
+    const info = await tlPost('tasks.info', { id: uuid }, token);
+    if (!info.ok) {
+      return NextResponse.json(
+        { error: 'tasks.info failed', detail: info.data, status: info.status },
+        { status: 502 },
+      );
+    }
+
+    const t = info.data?.data;
+    return NextResponse.json({
+      uuid,
+      title: t?.title || t?.description || null,
+      description: t?.description || null,
+      completed: !!t?.completed,
+      due_on: t?.due_on || null,
+    });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
