@@ -161,12 +161,27 @@ export async function GET(request) {
     const token = await getValidToken();
     const { tasks, endpoint: usedEndpoint } = await listAllTasks(projectId, token);
 
+    // V2 project tasks don't carry a customer field — the customer lives on
+    // the project itself. Try projects-v2.info once; whatever we get becomes
+    // the default customer for every task that doesn't have its own.
+    let projectCustomer = null;
+    if (usedEndpoint === 'projects-v2/tasks.list') {
+      const projInfo = await tlPost('projects-v2.info', { id: projectId }, token);
+      if (projInfo.ok) {
+        const p = projInfo.data?.data;
+        // V2 project may expose customer either as `customer` (single) or
+        // `customers[0]` (array). Cover both.
+        projectCustomer = p?.customer || p?.customers?.[0]?.customer || p?.customers?.[0] || null;
+      }
+    }
+
     const customerCache = new Map();
     const rows = [];
 
     for (const t of tasks) {
       const taskTitle = stripPrice(t.title || t.description || null);
-      const rawClientName = await resolveCustomerName(t.customer, token, customerCache);
+      const customer = t.customer || projectCustomer;
+      const rawClientName = await resolveCustomerName(customer, token, customerCache);
       const clientName = stripLegal(rawClientName);
       const clientId = slug(clientName);
       const { startMonth, startYear, weekInMonth } = deriveDateFields(t.due_on);
