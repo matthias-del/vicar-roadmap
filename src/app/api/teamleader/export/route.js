@@ -202,15 +202,40 @@ export async function GET(request) {
       );
     }
 
-    // Mode 2: debug raw responses.
+    // Mode 2: debug raw responses + try multiple filter shapes.
     if (debug) {
       const projInfo = await tlPost('projects-v2/projects.info', { id: projectIdParam }, token);
-      const tasksRes = await tlPost('projects-v2/tasks.list', {
-        page: { size: 2, number: 1 },
-      }, token);
+
+      const filterShapes = [
+        { label: 'project_id_string', filter: { project_id: projectIdParam } },
+        { label: 'project_object', filter: { project: { id: projectIdParam, type: 'nextgenProject' } } },
+        { label: 'project_id_only', filter: { project: projectIdParam } },
+        { label: 'ids_array', filter: { ids: [projectIdParam] } },
+        { label: 'project_ids_array', filter: { project_ids: [projectIdParam] } },
+      ];
+
+      const filterTests = [];
+      for (const shape of filterShapes) {
+        const r = await tlPost('projects-v2/tasks.list', {
+          filter: shape.filter,
+          page: { size: 5, number: 1 },
+        }, token);
+        const items = r.data?.data || [];
+        const matchingCount = items.filter(t => t.project?.id === projectIdParam).length;
+        filterTests.push({
+          label: shape.label,
+          status: r.status,
+          ok: r.ok,
+          returnedCount: items.length,
+          matchingProjectCount: matchingCount,
+          firstItemProjectId: items[0]?.project?.id || null,
+          error: r.ok ? null : r.data,
+        });
+      }
+
       return NextResponse.json({
         projects_v2_info: { status: projInfo.status, ok: projInfo.ok, data: projInfo.data },
-        projects_v2_tasks_list_first2: { status: tasksRes.status, ok: tasksRes.ok, data: tasksRes.data },
+        filterTests,
       });
     }
 
