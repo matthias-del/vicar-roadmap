@@ -30,9 +30,12 @@ export default function RoadmapContainer({ clientData }) {
     const grid = gridRef.current;
     if (!wrapper || !grid) return;
     const availableWidth = wrapper.clientWidth;
+    const availableHeight = window.innerHeight - wrapper.getBoundingClientRect().top - 24;
     const naturalWidth = grid.scrollWidth;
     const naturalHeight = grid.scrollHeight;
-    const s = Math.min(1, availableWidth / naturalWidth);
+    const scaleByWidth = availableWidth / naturalWidth;
+    const scaleByHeight = availableHeight / naturalHeight;
+    const s = Math.min(1, scaleByWidth, scaleByHeight);
     setScale(s);
     setScaledHeight(`${Math.ceil(naturalHeight * s)}px`);
   }, [zoomed]);
