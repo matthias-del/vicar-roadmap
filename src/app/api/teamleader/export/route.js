@@ -56,33 +56,45 @@ async function tlPost(endpoint, body, token) {
   return { status: res.status, ok: res.ok, data };
 }
 
-// Page through tasks.list until we have everything for this project.
+// Page through tasks for a project. Tries the new Projects V2 endpoint first
+// (the project URLs in the TL UI under /projects/<uuid>/work-breakdown are V2)
+// and falls back to legacy tasks.list if that 4xx's.
 async function listAllTasks(projectId, token) {
-  const all = [];
-  let page = 1;
-  const size = 100; // TL max page size
+  const endpoints = ['projects-v2/tasks.list', 'tasks.list'];
+  let lastErr = null;
 
-  while (true) {
-    const res = await tlPost('tasks.list', {
-      filter: { project_id: projectId },
-      page: { size, number: page },
-    }, token);
+  for (const endpoint of endpoints) {
+    const all = [];
+    let page = 1;
+    const size = 100;
+    let endpointFailed = false;
 
-    if (!res.ok) {
-      const err = new Error(`tasks.list failed (page ${page})`);
-      err.detail = res.data;
-      err.status = res.status;
-      throw err;
+    while (true) {
+      const res = await tlPost(endpoint, {
+        filter: { project_id: projectId },
+        page: { size, number: page },
+      }, token);
+
+      if (!res.ok) {
+        lastErr = { endpoint, page, status: res.status, detail: res.data };
+        endpointFailed = true;
+        break;
+      }
+
+      const items = res.data?.data || [];
+      all.push(...items);
+      if (items.length < size) break;
+      page += 1;
+      if (page > 50) break; // safety
     }
 
-    const items = res.data?.data || [];
-    all.push(...items);
-    if (items.length < size) break;
-    page += 1;
-    if (page > 50) break; // safety
+    if (!endpointFailed) return { tasks: all, endpoint };
   }
 
-  return all;
+  const err = new Error(`tasks.list failed on all endpoints (last: ${lastErr.endpoint} page ${lastErr.page})`);
+  err.detail = lastErr.detail;
+  err.status = lastErr.status;
+  throw err;
 }
 
 // Resolve a customer (company or contact) to a display name. Cached per call.
@@ -147,7 +159,7 @@ export async function GET(request) {
 
   try {
     const token = await getValidToken();
-    const tasks = await listAllTasks(projectId, token);
+    const { tasks, endpoint: usedEndpoint } = await listAllTasks(projectId, token);
 
     const customerCache = new Map();
     const rows = [];
@@ -178,7 +190,7 @@ export async function GET(request) {
     }
 
     if (format === 'json') {
-      return NextResponse.json({ count: rows.length, rows });
+      return NextResponse.json({ count: rows.length, endpoint: usedEndpoint, rows });
     }
 
     // TSV: tab-separated, newline between rows, no header (so it pastes
