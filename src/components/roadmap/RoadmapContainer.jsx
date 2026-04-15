@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import RoadmapGrid from "./RoadmapGrid";
 import StatusSidebar from "./StatusSidebar";
 
+const SIDEBAR_WIDTH = 160; // must match --sidebar-width in CSS
+
 export default function RoadmapContainer({ clientData }) {
   const router = useRouter();
   const [zoomed, setZoomed] = useState(false);
-  const wrapperRef = useRef(null);
-  const gridRef = useRef(null);
-  const [scale, setScale] = useState(1);
-  const [scaledHeight, setScaledHeight] = useState('auto');
+  const containerRef = useRef(null);
+  const [overviewCellWidth, setOverviewCellWidth] = useState(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -21,30 +21,21 @@ export default function RoadmapContainer({ clientData }) {
   }, [router]);
 
   useEffect(() => {
-    if (!zoomed) {
-      setScale(1);
-      setScaledHeight('auto');
-      return;
-    }
-    const wrapper = wrapperRef.current;
-    const grid = gridRef.current;
-    if (!wrapper || !grid) return;
-    const availableWidth = wrapper.clientWidth;
-    const availableHeight = window.innerHeight - wrapper.getBoundingClientRect().top - 24;
-    const naturalWidth = grid.scrollWidth;
-    const naturalHeight = grid.scrollHeight;
-    const scaleByWidth = availableWidth / naturalWidth;
-    const scaleByHeight = availableHeight / naturalHeight;
-    const s = Math.min(1, scaleByWidth, scaleByHeight);
-    setScale(s);
-    setScaledHeight(`${Math.ceil(naturalHeight * s)}px`);
-  }, [zoomed]);
+    if (!zoomed) { setOverviewCellWidth(null); return; }
+    const container = containerRef.current;
+    if (!container) return;
+    const totalWeeks = clientData.roadmap.totalWeeks;
+    // Available width = container width minus padding (20px each side) minus sidebar
+    const available = container.clientWidth - 40 - SIDEBAR_WIDTH - 4;
+    const cellWidth = Math.max(8, Math.floor(available / totalWeeks));
+    setOverviewCellWidth(cellWidth);
+  }, [zoomed, clientData.roadmap.totalWeeks]);
 
   return (
     <div className="roadmap-page">
       <StatusSidebar roadmap={clientData.roadmap} />
 
-      <div className="roadmap-container">
+      <div className="roadmap-container" ref={containerRef}>
         <div className="roadmap-header">
           <h1>{clientData.name}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -64,20 +55,8 @@ export default function RoadmapContainer({ clientData }) {
             </div>
           </div>
         </div>
-        <div
-          className="roadmap-wrapper"
-          ref={wrapperRef}
-          style={{ height: scaledHeight, overflow: zoomed ? 'hidden' : 'auto' }}
-        >
-          <div
-            ref={gridRef}
-            style={{
-              transform: `scale(${scale})`,
-              transformOrigin: 'top left',
-              width: scale < 1 ? `${100 / scale}%` : '100%',
-              transition: 'transform 0.3s ease',
-            }}
-          >
+        <div className="roadmap-wrapper" style={{ overflowX: zoomed ? 'hidden' : 'auto' }}>
+          <div style={overviewCellWidth ? { '--cell-min-width': `${overviewCellWidth}px` } : {}}>
             <RoadmapGrid roadmap={clientData.roadmap} />
           </div>
         </div>
