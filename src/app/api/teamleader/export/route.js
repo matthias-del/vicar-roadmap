@@ -190,7 +190,15 @@ export async function GET(request) {
     }
 
     if (format === 'json') {
-      return NextResponse.json({ count: rows.length, endpoint: usedEndpoint, rows });
+      // Default to a small preview to keep responses scannable. Pass
+      // ?full=1 to return every row.
+      const full = searchParams.get('full') === '1';
+      return NextResponse.json({
+        count: rows.length,
+        endpoint: usedEndpoint,
+        preview: rows.slice(0, 3),
+        ...(full ? { rows } : { hint: 'Add &full=1 to include every row, or drop format=json to download as TSV.' }),
+      });
     }
 
     // TSV: tab-separated, newline between rows, no header (so it pastes
