@@ -26,29 +26,34 @@ export default async function ProjectRoadmapPage({ params, searchParams }) {
   const cookieStore = await cookies();
 
   // ── Client-roadmap auth check ─────────────────────────────────────────────
+  // Admin cookie always grants access to any roadmap.
+  const adminPass = process.env.ADMIN_PASSWORD;
+  let isAdmin = false;
+  if (adminPass) {
+    const adminCookieVal = cookieStore.get(ADMIN_COOKIE)?.value;
+    isAdmin = adminCookieVal === adminToken(adminPass);
+  }
+
   const expectedPassword = getRoadmapPassword(rows, clientId, projectId);
-  let clientAuthed = !expectedPassword; // empty/missing password → public
-  if (expectedPassword) {
+  let clientAuthed = false;
+
+  if (isAdmin) {
+    clientAuthed = true;
+  } else if (expectedPassword) {
+    // Client has a dedicated password → check their cookie.
     const cookieVal = cookieStore.get(roadmapCookieName(clientId, projectId))?.value;
     clientAuthed = cookieVal === roadmapToken(clientId, projectId, expectedPassword);
   }
+  // No password configured + not admin → locked (must set a password first).
 
   if (!clientAuthed) {
     return <LoginForm clientId={clientId} projectId={projectId} />;
   }
 
   // ── Admin auth check (only when ?edit=1) ──────────────────────────────────
-  let adminAuthed = false;
-  if (wantsBuilder) {
-    const adminPass = process.env.ADMIN_PASSWORD;
-    if (adminPass) {
-      const cookieVal = cookieStore.get(ADMIN_COOKIE)?.value;
-      adminAuthed = cookieVal === adminToken(adminPass);
-    }
-    if (!adminAuthed) {
-      return <LoginForm clientId={clientId} projectId={projectId} adminMode />;
-    }
+  if (wantsBuilder && !isAdmin) {
+    return <LoginForm clientId={clientId} projectId={projectId} adminMode />;
   }
 
-  return <RoadmapContainer clientData={clientData} showBuilder={wantsBuilder && adminAuthed} />;
+  return <RoadmapContainer clientData={clientData} showBuilder={wantsBuilder && isAdmin} />;
 }
