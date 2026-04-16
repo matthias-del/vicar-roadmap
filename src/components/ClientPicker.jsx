@@ -1,20 +1,49 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function ClientPicker({ clients }) {
   const router = useRouter();
+  const [search, setSearch] = useState("");
+
+  const q = search.toLowerCase().trim();
+  const filtered = q
+    ? clients.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.projects.some(p => p.title.toLowerCase().includes(q))
+      )
+    : clients;
 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', minHeight: '100vh', gap: '32px',
+      minHeight: '100vh', gap: '24px',
       padding: '40px 24px',
     }}>
       <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700 }}>Agency Dashboard</h1>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', maxWidth: '480px' }}>
-        {clients.map(client => (
+      <input
+        type="text"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Search clients or projects..."
+        style={{
+          width: '100%', maxWidth: '480px',
+          padding: '10px 14px', fontSize: '14px',
+          borderRadius: '6px', border: '1px solid #e5e5e5',
+          outline: 'none',
+        }}
+        onFocus={e => { e.currentTarget.style.borderColor = '#121212'; }}
+        onBlur={e => { e.currentTarget.style.borderColor = '#e5e5e5'; }}
+      />
+
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: '24px',
+        width: '100%', maxWidth: '480px',
+        flex: 1, overflowY: 'auto',
+      }}>
+        {filtered.map(client => (
           <div key={client.id}>
             <div style={{
               fontSize: '13px', fontWeight: 700, textTransform: 'uppercase',
@@ -46,9 +75,17 @@ export default function ClientPicker({ clients }) {
           </div>
         ))}
 
+        {filtered.length === 0 && search && (
+          <p style={{ color: '#888', textAlign: 'center' }}>No matches for "{search}"</p>
+        )}
+
         {clients.length === 0 && (
           <p style={{ color: '#888', textAlign: 'center' }}>No roadmaps found in the sheet.</p>
         )}
+      </div>
+
+      <div style={{ fontSize: '12px', color: '#aaa' }}>
+        {filtered.length} of {clients.length} clients
       </div>
     </div>
   );
