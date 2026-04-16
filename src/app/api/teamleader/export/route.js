@@ -25,9 +25,23 @@
 //   A clientId   B clientName   C groupLabel   D taskTitle
 //   E startMonth F startYear    G weekInMonth  H duration
 //   I status     J completionThreshold         K teamleaderIds
+//
+// Auto-import mode:
+//   ?projectId=<uuid>&autoImport=1  → fire the create Zap for each row.
+//   Rows appear in the sheet automatically via ZAPIER_CREATE_WEBHOOK_URL
+//   (no copy-paste). Returns a summary of what was fired.
 
 import { NextResponse } from 'next/server';
 import { getValidToken } from '@/lib/teamleaderAuth';
+
+async function fireZap(url, payload) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return { ok: res.ok, status: res.status };
+}
 
 const TL = 'https://api.focus.teamleader.eu';
 
@@ -430,6 +444,49 @@ export async function GET(request) {
         end_date: t.end_date || t.date,
         projectId: projectIdParam,
         projectTitle: projectTitle ?? '',
+      });
+    }
+
+    // Mode 3: auto-import. Fire the create Zap for each row so the sheet
+    // populates automatically. Skips rows where teamleaderIds (col K) already
+    // exists in case this is run twice accidentally.
+    if (searchParams.get('autoImport') === '1') {
+      const createZapUrl = searchParams.get('createZapUrl') || process.env.ZAPIER_CREATE_WEBHOOK_URL;
+      if (!createZapUrl) {
+        return NextResponse.json(
+          { error: 'Set ZAPIER_CREATE_WEBHOOK_URL env var or pass ?createZapUrl=...' },
+          { status: 400 },
+        );
+      }
+      const fired = [];
+      for (const r of rows) {
+        const payload = {
+          clientId: r.clientId,
+          clientName: r.clientName,
+          groupLabel: r.groupLabel,
+          taskTitle: r.taskTitle,
+          startMonth: r.startMonth,
+          startYear: r.startYear,
+          weekInMonth: r.weekInMonth,
+          duration: r.duration,
+          status: r.status,
+          completionThreshold: r.completionThreshold,
+          teamleaderIds: r.teamleaderIds,
+          projectId: r.projectId,
+          projectTitle: r.projectTitle,
+        };
+        const res = await fireZap(createZapUrl, payload);
+        fired.push({ taskTitle: r.taskTitle, ok: res.ok, status: res.status });
+        await sleep(300);
+      }
+      return NextResponse.json({
+        mode: 'autoImport',
+        projectId: projectIdParam,
+        projectTitle,
+        clientName,
+        clientId,
+        count: rows.length,
+        fired,
       });
     }
 
