@@ -18,8 +18,10 @@
 //      sheet, POST the full row payload to ZAPIER_CREATE_WEBHOOK_URL
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getValidToken } from '@/lib/teamleaderAuth';
 import { fetchSheetRows } from '@/lib/googleSheets';
+import { isAdminAuthed } from '@/lib/authCookie';
 
 const TL = 'https://api.focus.teamleader.eu';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -124,6 +126,11 @@ export async function GET(request) {
   const zapUrl = searchParams.get('zapUrl') || process.env.ZAPIER_WEBHOOK_URL;
   const createZapUrl = searchParams.get('createZapUrl') || process.env.ZAPIER_CREATE_WEBHOOK_URL;
   const rescheduleZapUrl = searchParams.get('rescheduleZapUrl') || process.env.ZAPIER_RESCHEDULE_WEBHOOK_URL;
+
+  const cookieStore = await cookies();
+  if (!isAdminAuthed(request, cookieStore)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   if (!dryRun && !zapUrl) {
     return NextResponse.json(

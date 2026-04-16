@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { syncRoadmapToTeamleader } from '@/lib/teamleaderSync';
 import { getClientRoadmap } from '@/data/mockRoadmapData';
 import { getValidToken } from '@/lib/teamleaderAuth';
 import { getTeamleaderTask } from '@/lib/teamleaderClient';
+import { isAdminAuthed } from '@/lib/authCookie';
 
 async function tlPost(endpoint, body, token) {
   const res = await fetch(`https://api.focus.teamleader.eu/${endpoint}`, {
@@ -30,6 +32,11 @@ export async function GET(request) {
   const page          = Number(searchParams.get('page') || 1);
 
   try {
+    const cookieStore = await cookies();
+    if (!isAdminAuthed(request, cookieStore)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const token = await getValidToken();
 
     // 1. Auth check via users.me

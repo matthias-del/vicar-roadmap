@@ -23,3 +23,24 @@ export function roadmapCookieName(clientId, projectId) {
 }
 
 export const ADMIN_COOKIE = 'ra_admin';
+
+// ── API route auth ──────────────────────────────────────────────────────────
+// Checks admin cookie OR ?key= query param (for cron/Zapier).
+// Returns true if authorised, false otherwise.
+export function isAdminAuthed(request, cookieStore) {
+  const adminPass = process.env.ADMIN_PASSWORD;
+  if (!adminPass) return true; // no password configured → open (dev mode)
+
+  // 1. Check ?key= query param (for automated calls)
+  const { searchParams } = new URL(request.url);
+  const apiKey = searchParams.get('key');
+  if (apiKey && apiKey === process.env.API_SECRET) return true;
+
+  // 2. Check admin cookie (for browser access)
+  if (cookieStore) {
+    const cookieVal = cookieStore.get(ADMIN_COOKIE)?.value;
+    if (cookieVal === adminToken(adminPass)) return true;
+  }
+
+  return false;
+}

@@ -9,7 +9,9 @@
 //   V2 meetings:       nextgenProjectsMeeting.completed, nextgenProjectsMeeting.reopened, nextgenProjectsMeeting.updated
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getValidToken } from '@/lib/teamleaderAuth';
+import { isAdminAuthed } from '@/lib/authCookie';
 
 const TL = 'https://api.focus.teamleader.eu';
 
@@ -43,6 +45,11 @@ export async function GET(request) {
   const typesParam = searchParams.get('types');
 
   try {
+    const cookieStore = await cookies();
+    if (!isAdminAuthed(request, cookieStore)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const token = await getValidToken();
 
     if (list) {

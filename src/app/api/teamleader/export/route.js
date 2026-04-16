@@ -32,7 +32,9 @@
 //   (no copy-paste). Returns a summary of what was fired.
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getValidToken } from '@/lib/teamleaderAuth';
+import { isAdminAuthed } from '@/lib/authCookie';
 
 async function fireZap(url, payload) {
   const res = await fetch(url, {
@@ -231,6 +233,11 @@ export async function GET(request) {
   const debug = searchParams.get('debug') === '1';
 
   try {
+    const cookieStore = await cookies();
+    if (!isAdminAuthed(request, cookieStore)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const token = await getValidToken();
 
     // Mode 1: list V2 projects so the user can find the right API ID.
