@@ -56,7 +56,6 @@ export default function CreateProjectForm({ templates = [] }) {
   const [startsOn, setStartsOn] = useState("");
   const [customerType, setCustomerType] = useState("company");
   const [customerId, setCustomerId] = useState("");
-  const [dealId, setDealId] = useState("");
   const [milestones, setMilestones] = useState([emptyMilestone()]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
@@ -207,7 +206,6 @@ export default function CreateProjectForm({ templates = [] }) {
             startsOn: startsOn || undefined,
             customerType: customerId.trim() ? customerType : undefined,
             customerId: customerId.trim() || undefined,
-            dealId: dealId.trim() || undefined,
           },
           milestones: cleanMilestones,
         }),
@@ -286,15 +284,6 @@ export default function CreateProjectForm({ templates = [] }) {
                   placeholder="optional"
                 />
               </div>
-            </div>
-            <div>
-              <label style={label}>Deal UUID</label>
-              <input
-                style={input}
-                value={dealId}
-                onChange={e => setDealId(e.target.value)}
-                placeholder="optional — links the project to an existing deal"
-              />
             </div>
           </div>
         </div>
