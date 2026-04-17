@@ -2,11 +2,11 @@ import { cookies } from 'next/headers';
 import { adminToken, ADMIN_COOKIE } from '@/lib/authCookie';
 import { listTemplates } from '@/lib/milestoneTemplates';
 import LoginForm from '@/components/LoginForm';
-import CreateProjectForm from '@/components/CreateProjectForm';
+import ManageTemplatesForm from '@/components/ManageTemplatesForm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CreateProjectPage() {
+export default async function TemplatesPage() {
   const adminPass = process.env.ADMIN_PASSWORD;
   if (adminPass) {
     const cookieStore = await cookies();
@@ -16,5 +16,5 @@ export default async function CreateProjectPage() {
   }
 
   const templates = await listTemplates();
-  return <CreateProjectForm templates={templates} />;
+  return <ManageTemplatesForm initialTemplates={templates} />;
 }

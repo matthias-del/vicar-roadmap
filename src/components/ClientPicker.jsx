@@ -28,6 +28,16 @@ export default function ClientPicker({ clients }) {
         <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700 }}>Agency Dashboard</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
+            onClick={() => router.push('/admin/templates')}
+            style={{
+              padding: '8px 12px', fontSize: '13px', fontWeight: 500,
+              background: 'white', color: '#121212', border: '1px solid #ccc',
+              borderRadius: '6px', cursor: 'pointer',
+            }}
+          >
+            Templates
+          </button>
+          <button
             onClick={() => router.push('/admin/passwords')}
             style={{
               padding: '8px 12px', fontSize: '13px', fontWeight: 500,
