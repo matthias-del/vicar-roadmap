@@ -12,6 +12,7 @@ export async function GET() {
   authUrl.searchParams.set('client_id', clientId);
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('scope', 'projects');
   authUrl.searchParams.set('state', 'vicar-roadmap-' + Date.now());
 
   return NextResponse.redirect(authUrl.toString());
