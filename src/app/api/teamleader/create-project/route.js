@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { isAdminAuthed } from '@/lib/authCookie';
 import {
-  createProjectWithMilestones,
-  createTaskForMilestone,
+  createProject,
+  createMilestone,
+  createTask,
 } from '@/lib/teamleaderCreate';
 
 export async function POST(request) {
@@ -34,25 +35,21 @@ export async function POST(request) {
     failedAt: null,
   };
 
+  // Step 1 — project.
   try {
-    const created = await createProjectWithMilestones({
+    const { id } = await createProject({
       title: project.title,
       description: project.description,
       startsOn: project.startsOn,
       customerType: project.customerType,
       customerId: project.customerId,
-      milestones: milestones.map(m => ({
-        name: m.name,
-        dueOn: m.dueOn,
-      })),
     });
-    result.projectId = created.projectId;
-    result.milestones = created.milestones;
+    result.projectId = id;
   } catch (err) {
     return NextResponse.json(
       {
         error: 'Failed to create project',
-        step: 'projects.create',
+        step: err.endpoint || 'projects-v2/projects.create',
         status: err.status,
         details: err.body,
       },
@@ -60,22 +57,38 @@ export async function POST(request) {
     );
   }
 
-  // Create tasks per milestone, continuing on individual failures so the
-  // admin gets a clear partial-success report rather than a silent abort.
+  // Step 2 — milestones, one call each.
+  for (let i = 0; i < milestones.length; i++) {
+    const ms = milestones[i];
+    try {
+      const { id } = await createMilestone({
+        projectId: result.projectId,
+        name: ms.name,
+        dueOn: ms.dueOn,
+      });
+      result.milestones.push({ id, name: ms.name });
+    } catch (err) {
+      result.failedAt = result.failedAt || {
+        step: err.endpoint || 'projects-v2/milestones.create',
+        milestoneIndex: i,
+        name: ms.name,
+        status: err.status,
+        details: err.body,
+      };
+      result.milestones.push({ id: null, name: ms.name });
+    }
+  }
+
+  // Step 3 — tasks under each milestone (continuing on per-task failures).
   for (let i = 0; i < milestones.length; i++) {
     const ms = milestones[i];
     const milestoneId = result.milestones[i]?.id;
-    if (!milestoneId) {
-      result.failedAt = result.failedAt || {
-        step: 'milestone-id-missing',
-        milestoneIndex: i,
-      };
-      continue;
-    }
+    if (!milestoneId) continue;
     const tasks = Array.isArray(ms.tasks) ? ms.tasks : [];
     for (const task of tasks) {
       try {
-        const { id } = await createTaskForMilestone({
+        const { id } = await createTask({
+          projectId: result.projectId,
           milestoneId,
           title: task.title,
           description: task.description,
@@ -84,7 +97,7 @@ export async function POST(request) {
         result.taskIds.push({ milestoneId, id, title: task.title });
       } catch (err) {
         result.failedAt = result.failedAt || {
-          step: 'tasks.create',
+          step: err.endpoint || 'projects-v2/tasks.create',
           milestoneId,
           task: task.title,
           status: err.status,

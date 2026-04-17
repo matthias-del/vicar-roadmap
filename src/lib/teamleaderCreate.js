@@ -2,9 +2,11 @@ import { getValidToken } from './teamleaderAuth';
 
 const TL_API = 'https://api.focus.teamleader.eu';
 
-// Endpoint paths kept here so they can be swapped to `projects-v2/*` if needed.
-const EP_PROJECT_CREATE = 'projects.create';
-const EP_TASK_CREATE = 'tasks.create';
+// V2 endpoints. V1 projects.create returns 403 "no access to this module" on
+// accounts migrated to V2 — reads across the app already use projects-v2/*.
+const EP_PROJECT_CREATE = 'projects-v2/projects.create';
+const EP_MILESTONE_CREATE = 'projects-v2/milestones.create';
+const EP_TASK_CREATE = 'projects-v2/tasks.create';
 
 async function tlPost(endpoint, body) {
   const token = await getValidToken();
@@ -23,21 +25,20 @@ async function tlPost(endpoint, body) {
     const err = new Error(`Teamleader ${endpoint} failed (${res.status})`);
     err.status = res.status;
     err.body = data;
+    err.endpoint = endpoint;
     throw err;
   }
   return data;
 }
 
-// Creates a project with milestones nested. Teamleader's projects.create
-// accepts the full milestone list in a single call and returns their ids.
-// Returns { projectId, milestones: [{ id, name }] }.
-export async function createProjectWithMilestones({
+// V2 projects.create — no nested milestones; those go via a separate endpoint.
+// Returns { id }.
+export async function createProject({
   title,
   description,
   startsOn,
   customerType,
   customerId,
-  milestones,
 }) {
   const body = {
     title,
@@ -46,34 +47,35 @@ export async function createProjectWithMilestones({
     ...(customerType && customerId
       ? { customer: { type: customerType, id: customerId } }
       : {}),
-    milestones: milestones.map(m => ({
-      name: m.name,
-      ...(m.dueOn ? { due_on: m.dueOn } : {}),
-      ...(m.responsibleUserId
-        ? { responsible_user_id: m.responsibleUserId }
-        : {}),
-    })),
   };
-
   const res = await tlPost(EP_PROJECT_CREATE, body);
-  const projectId = res?.data?.id;
-  const createdMilestones = Array.isArray(res?.data?.milestones)
-    ? res.data.milestones
-    : [];
-
-  // Teamleader returns milestones in the same order they were submitted,
-  // so zip by index to pair the server ids back to our input names.
-  const milestonesById = milestones.map((m, i) => ({
-    id: createdMilestones[i]?.id,
-    name: m.name,
-  }));
-
-  return { projectId, milestones: milestonesById };
+  return { id: res?.data?.id };
 }
 
-// Creates a single task under an existing milestone.
+// V2 milestones.create — one call per milestone, bound to the project.
 // Returns { id }.
-export async function createTaskForMilestone({
+export async function createMilestone({
+  projectId,
+  name,
+  startsOn,
+  dueOn,
+  responsibleUserId,
+}) {
+  const body = {
+    project_id: projectId,
+    name,
+    ...(startsOn ? { starts_on: startsOn } : {}),
+    ...(dueOn ? { due_on: dueOn } : {}),
+    ...(responsibleUserId ? { responsible_user_id: responsibleUserId } : {}),
+  };
+  const res = await tlPost(EP_MILESTONE_CREATE, body);
+  return { id: res?.data?.id };
+}
+
+// V2 tasks.create — bound to a project and optionally a milestone.
+// Returns { id }.
+export async function createTask({
+  projectId,
   milestoneId,
   title,
   description,
@@ -81,13 +83,12 @@ export async function createTaskForMilestone({
   assigneeUserId,
 }) {
   const body = {
+    project_id: projectId,
     title,
     ...(description ? { description } : {}),
     ...(dueOn ? { due_on: dueOn } : {}),
-    milestone_id: milestoneId,
-    ...(assigneeUserId
-      ? { assignee: { type: 'user', id: assigneeUserId } }
-      : {}),
+    ...(milestoneId ? { milestone_id: milestoneId } : {}),
+    ...(assigneeUserId ? { assignee: { type: 'user', id: assigneeUserId } } : {}),
   };
   const res = await tlPost(EP_TASK_CREATE, body);
   return { id: res?.data?.id };
