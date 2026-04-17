@@ -4,8 +4,10 @@ const TL_API = 'https://api.focus.teamleader.eu';
 
 // V2 endpoints. V1 projects.create returns 403 "no access to this module" on
 // accounts migrated to V2 — reads across the app already use projects-v2/*.
+// V2 renames "milestones" to "project groups" (see projects-v2/projectGroups.info
+// used elsewhere), so there's no milestones.create — it's projectGroups.create.
 const EP_PROJECT_CREATE = 'projects-v2/projects.create';
-const EP_MILESTONE_CREATE = 'projects-v2/milestones.create';
+const EP_GROUP_CREATE = 'projects-v2/projectGroups.create';
 const EP_TASK_CREATE = 'projects-v2/tasks.create';
 
 async function tlPost(endpoint, body) {
@@ -52,7 +54,7 @@ export async function createProject({
   return { id: res?.data?.id };
 }
 
-// V2 milestones.create — one call per milestone, bound to the project.
+// V2 projectGroups.create — V2's equivalent of V1 milestones. One call each.
 // Returns { id }.
 export async function createMilestone({
   projectId,
@@ -63,16 +65,16 @@ export async function createMilestone({
 }) {
   const body = {
     project_id: projectId,
-    name,
+    title: name,
     ...(startsOn ? { starts_on: startsOn } : {}),
     ...(dueOn ? { due_on: dueOn } : {}),
     ...(responsibleUserId ? { responsible_user_id: responsibleUserId } : {}),
   };
-  const res = await tlPost(EP_MILESTONE_CREATE, body);
+  const res = await tlPost(EP_GROUP_CREATE, body);
   return { id: res?.data?.id };
 }
 
-// V2 tasks.create — bound to a project and optionally a milestone.
+// V2 tasks.create — bound to a project and optionally a project group.
 // Returns { id }.
 export async function createTask({
   projectId,
@@ -87,7 +89,7 @@ export async function createTask({
     title,
     ...(description ? { description } : {}),
     ...(dueOn ? { due_on: dueOn } : {}),
-    ...(milestoneId ? { milestone_id: milestoneId } : {}),
+    ...(milestoneId ? { project_group_id: milestoneId } : {}),
     ...(assigneeUserId ? { assignee: { type: 'user', id: assigneeUserId } } : {}),
   };
   const res = await tlPost(EP_TASK_CREATE, body);
