@@ -89,7 +89,7 @@ export async function createTask({
     title,
     ...(description ? { description } : {}),
     ...(dueOn ? { due_on: dueOn } : {}),
-    ...(milestoneId ? { group: { id: milestoneId } } : {}),
+    ...(milestoneId ? { group_id: milestoneId } : {}),
     ...(assigneeUserId ? { assignee: { type: 'user', id: assigneeUserId } } : {}),
   };
   const res = await tlPost(EP_TASK_CREATE, body);
