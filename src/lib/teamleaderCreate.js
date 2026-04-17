@@ -46,8 +46,10 @@ export async function createProject({
     title,
     ...(description ? { description } : {}),
     ...(startsOn ? { starts_on: startsOn } : {}),
+    // V2 projects hold customers as an array of refs (read shape:
+    // p.customers[0].customer = { type, id }). Writes mirror reads.
     ...(customerType && customerId
-      ? { customer: { type: customerType, id: customerId } }
+      ? { customers: [{ customer: { type: customerType, id: customerId } }] }
       : {}),
   };
   const res = await tlPost(EP_PROJECT_CREATE, body);
