@@ -34,7 +34,7 @@ export default async function ProjectRoadmapPage({ params, searchParams }) {
     isAdmin = adminCookieVal === adminToken(adminPass);
   }
 
-  const expectedPassword = getRoadmapPassword(rows, clientId, projectId);
+  const expectedPassword = await getRoadmapPassword(rows, clientId, projectId);
   let clientAuthed = false;
 
   if (isAdmin) {

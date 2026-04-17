@@ -166,16 +166,13 @@ export function buildClientRoadmapFromRows(rows, clientId, projectId = null) {
 }
 
 // ── Look up the password for a given client/project ──────────────────────────
-// Passwords live in the CLIENT_PASSWORDS env var as a JSON map:
-//   { "clientId/projectId": "password", ... }
-// Returns the password string (may be empty → public, no login required).
-export function getRoadmapPassword(_rows, clientId, projectId = null) {
-  const raw = process.env.CLIENT_PASSWORDS;
-  if (!raw) return '';
-  let map;
-  try { map = JSON.parse(raw); } catch { return ''; }
-  const key = projectId ? `${clientId}/${projectId}` : clientId;
-  return (map[key] || '').toString().trim();
+// Passwords are stored in Upstash KV (prod) or on disk (local dev), managed via
+// the /admin/passwords UI. Falls back to the legacy CLIENT_PASSWORDS env var.
+// Returns the password string (may be empty → locked, no one can log in).
+import { getClientPassword } from './clientPasswords';
+
+export async function getRoadmapPassword(_rows, clientId, projectId = null) {
+  return getClientPassword(clientId, projectId);
 }
 
 // ── Get all clients with their projects from the sheet ────────────────────────

@@ -40,7 +40,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: 'Sheet fetch failed' }, { status: 500 });
   }
 
-  const expected = getRoadmapPassword(rows, clientId, projectId);
+  const expected = await getRoadmapPassword(rows, clientId, projectId);
   if (!expected) {
     // No password set for this client → already public
     return NextResponse.json({ ok: true, public: true });
