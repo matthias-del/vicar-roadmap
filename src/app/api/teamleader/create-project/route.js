@@ -43,6 +43,7 @@ export async function POST(request) {
       startsOn: project.startsOn,
       customerType: project.customerType,
       customerId: project.customerId,
+      dealId: project.dealId,
     });
     result.projectId = id;
   } catch (err) {
