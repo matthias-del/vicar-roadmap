@@ -50,7 +50,7 @@ export async function createProject({
     ...(customerType && customerId
       ? { customers: [{ type: customerType, id: customerId }] }
       : {}),
-    ...(dealId ? { deal_id: dealId } : {}),
+    ...(dealId ? { deals: [{ id: dealId }] } : {}),
   };
   const res = await tlPost(EP_PROJECT_CREATE, body);
   return { id: res?.data?.id };
