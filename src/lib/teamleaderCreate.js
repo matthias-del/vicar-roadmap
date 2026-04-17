@@ -45,7 +45,7 @@ export async function createProject({
   const body = {
     title,
     ...(description ? { description } : {}),
-    ...(startsOn ? { starts_on: startsOn } : {}),
+    ...(startsOn ? { start_date: startsOn } : {}),
     ...(customerType && customerId
       ? { customers: [{ type: customerType, id: customerId }] }
       : {}),
@@ -66,8 +66,8 @@ export async function createMilestone({
   const body = {
     project_id: projectId,
     title: name,
-    ...(startsOn ? { starts_on: startsOn } : {}),
-    ...(dueOn ? { due_on: dueOn } : {}),
+    ...(startsOn ? { start_date: startsOn } : {}),
+    ...(dueOn ? { end_date: dueOn } : {}),
     ...(responsibleUserId ? { responsible_user_id: responsibleUserId } : {}),
   };
   const res = await tlPost(EP_GROUP_CREATE, body);
@@ -88,7 +88,7 @@ export async function createTask({
     project_id: projectId,
     title,
     ...(description ? { description } : {}),
-    ...(dueOn ? { due_on: dueOn } : {}),
+    ...(dueOn ? { end_date: dueOn } : {}),
     ...(milestoneId ? { group_id: milestoneId } : {}),
     ...(assigneeUserId ? { assignee: { type: 'user', id: assigneeUserId } } : {}),
   };
